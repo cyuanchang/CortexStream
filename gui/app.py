@@ -7,12 +7,22 @@ from typing import List
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
-from Realtime_processing.headmap import IDWHeadmapModel, build_idw_headmap_model
-from Realtime_processing.montage import ChannelPosition, get_default_16ch_positions
+from Realtime_processing.headmap import OpenBCIHeadmapModel, build_openbci_headmap_model
+from Realtime_processing.headplot_render import render_head_image, scalp_rgba_for_display
+from Realtime_processing.montage import (
+    ChannelPosition,
+    get_default_16ch_positions,
+    get_reference_position,
+)
+from gui.band_power_window import BandPowerWindow
 from Realtime_processing.gui_preprocessing import (
+    compute_band_powers_openbci,
     compute_gui_fft_amplitude,
+    compute_head_intensity_std,
+    compute_head_polarity_openbci,
+    normalize_band_powers_per_channel,
     run_gui_filter_pipeline,
     smooth_fft_amplitude_openbci,
 )
@@ -23,6 +33,9 @@ from streaming.types import StreamConfig
 
 
 class StreamWindow(QtWidgets.QWidget):
+    _HEAD_Z_IMAGE = 0
+    _HEAD_Z_OUTLINE = 10
+
     def __init__(self, serial_port: str, recordings_dir: str):
         super().__init__()
         self.setWindowTitle("BCI Phase2.1 Preprocessing Monitor")
@@ -38,9 +51,16 @@ class StreamWindow(QtWidgets.QWidget):
         self._plot_data = np.zeros((self._channel_count, self._window_samples))
         self._fft_n = int(StreamNumeric.FFT_N)
         self._smoothed_fft_amplitude: np.ndarray | None = None
-        self._channel_positions: List[ChannelPosition] = get_default_16ch_positions()
-        self._headmap_model: IDWHeadmapModel | None = None
-        self._smoothed_headmap: np.ndarray | None = None
+        self._channel_positions: List[ChannelPosition] = get_default_16ch_positions(
+            float(StreamFloat.ELECTRODE_REL_DIAM),
+            float(StreamFloat.MONTAGE_LAYOUT_SCALE),
+        )
+        self._headmap_model: OpenBCIHeadmapModel | None = None
+        self._smoothed_pixel_voltage: np.ndarray | None = None
+        self._head_outline_items: List[pg.PlotDataItem] = []
+        self._normalized_band_powers: np.ndarray | None = None
+        self._band_power_window: BandPowerWindow | None = None
+        self._band_edges = self._default_band_edges()
         self._stream_started_monotonic: float | None = None
         self._samples_received = 0
         self._build_ui()
@@ -49,7 +69,7 @@ class StreamWindow(QtWidgets.QWidget):
         self._timer.timeout.connect(self._drain_queue)
         self._timer.start(int(StreamNumeric.GUI_REFRESH_MS))
         self._spectral_timer = QtCore.QTimer(self)
-        self._spectral_timer.timeout.connect(self._update_fft_plot)
+        self._spectral_timer.timeout.connect(self._update_spectral_views)
         self._spectral_timer.start(int(StreamNumeric.SPECTRAL_REFRESH_MS))
 
     def _build_ui(self) -> None:
@@ -70,6 +90,8 @@ class StreamWindow(QtWidgets.QWidget):
         self._start_button.clicked.connect(self._start_stream)
         self._stop_button.clicked.connect(self._stop_stream)
         self._disconnect_button.clicked.connect(self._disconnect)
+        self._band_power_button = QtWidgets.QPushButton("Show band power")
+        self._band_power_button.clicked.connect(self._toggle_band_power_window)
 
         controls.addWidget(self._port_label)
         controls.addWidget(self._status_label)
@@ -78,10 +100,11 @@ class StreamWindow(QtWidgets.QWidget):
         controls.addWidget(self._start_button)
         controls.addWidget(self._stop_button)
         controls.addWidget(self._disconnect_button)
+        controls.addWidget(self._band_power_button)
 
         self._health_label = QtWidgets.QLabel("chunks: 0 | dropped: 0 | queue: 0 | uptime_s: 0.0")
         self._recorder_label = QtWidgets.QLabel("recorder: idle")
-        self._band_label = QtWidgets.QLabel("headplot: frozen (FFT upgrade)")
+        self._band_label = QtWidgets.QLabel("spectral: head std + band power @ 40ms")
 
         body = QtWidgets.QHBoxLayout()
         self._plot_widget = pg.GraphicsLayoutWidget()
@@ -116,12 +139,14 @@ class StreamWindow(QtWidgets.QWidget):
             self._fft_curves.append(self._fft_widget.plot(pen=pg.mkPen(color=color, width=1)))
         right_panel.addWidget(self._fft_widget, stretch=2)
 
-        self._head_widget = pg.PlotWidget(title="Head Power (post-preprocess)")
+        self._head_widget = pg.PlotWidget(title="Head Plot (OpenBCI std + polarity)")
         self._head_widget.setAspectLocked(True)
         self._head_widget.setMenuEnabled(False)
         self._head_widget.setMouseEnabled(x=False, y=False)
         self._head_widget.hideAxis("left")
         self._head_widget.hideAxis("bottom")
+        self._head_widget.hideAxis("top")
+        self._head_widget.hideAxis("right")
         self._head_widget.setXRange(-1.15, 1.15, padding=0.0)
         self._head_widget.setYRange(-1.15, 1.15, padding=0.0)
         self._init_headplot()
@@ -139,6 +164,29 @@ class StreamWindow(QtWidgets.QWidget):
         root.addLayout(body)
         self.setLayout(root)
 
+    @staticmethod
+    def _default_band_edges() -> List[tuple[float, float]]:
+        return [
+            (float(StreamFloat.BAND_DELTA_LOW_HZ), float(StreamFloat.BAND_DELTA_HIGH_HZ)),
+            (float(StreamFloat.BAND_THETA_LOW_HZ), float(StreamFloat.BAND_THETA_HIGH_HZ)),
+            (float(StreamFloat.BAND_ALPHA_LOW_HZ), float(StreamFloat.BAND_ALPHA_HIGH_HZ)),
+            (float(StreamFloat.BAND_BETA_LOW_HZ), float(StreamFloat.BAND_BETA_HIGH_HZ)),
+            (float(StreamFloat.BAND_GAMMA_LOW_HZ), float(StreamFloat.BAND_GAMMA_HIGH_HZ)),
+        ]
+
+    def _toggle_band_power_window(self) -> None:
+        if self._band_power_window is None:
+            self._band_power_window = BandPowerWindow(channel_count=self._channel_count)
+            self._band_power_window.closed_by_user.connect(self._on_band_power_window_closed)
+        self._band_power_window.show()
+        self._band_power_window.raise_()
+        self._band_power_button.setText("Band power open")
+        if self._normalized_band_powers is not None:
+            self._band_power_window.update_powers(self._normalized_band_powers)
+
+    def _on_band_power_window_closed(self) -> None:
+        self._band_power_button.setText("Show band power")
+
     def _connect(self) -> None:
         config = StreamConfig(serial_port=self._serial_port, board_id=int(BoardIdsEnum.CYTON_DAISY))
         self._service = BrainFlowStreamService(config)
@@ -149,7 +197,8 @@ class StreamWindow(QtWidgets.QWidget):
         self._raw_plot_data = np.zeros((self._channel_count, self._processing_samples))
         self._plot_data = np.zeros((self._channel_count, self._window_samples))
         self._smoothed_fft_amplitude = None
-        self._smoothed_headmap = None
+        self._smoothed_pixel_voltage = None
+        self._normalized_band_powers = None
         self._samples_received = 0
         self._status_label.setText("state: connected")
         self._connect_button.setEnabled(False)
@@ -171,7 +220,8 @@ class StreamWindow(QtWidgets.QWidget):
         self._service.start()
         self._stream_started_monotonic = time.monotonic()
         self._smoothed_fft_amplitude = None
-        self._smoothed_headmap = None
+        self._smoothed_pixel_voltage = None
+        self._normalized_band_powers = None
         self._samples_received = 0
         self._status_label.setText("state: streaming")
         self._recorder_label.setText(f"recorder: {session_dir}")
@@ -188,7 +238,8 @@ class StreamWindow(QtWidgets.QWidget):
             self._recorder = None
         self._stream_started_monotonic = None
         self._smoothed_fft_amplitude = None
-        self._smoothed_headmap = None
+        self._smoothed_pixel_voltage = None
+        self._normalized_band_powers = None
         self._samples_received = 0
         self._status_label.setText("state: connected")
         self._start_button.setEnabled(True)
@@ -208,7 +259,8 @@ class StreamWindow(QtWidgets.QWidget):
         self._disconnect_button.setEnabled(False)
         self._stream_started_monotonic = None
         self._smoothed_fft_amplitude = None
-        self._smoothed_headmap = None
+        self._smoothed_pixel_voltage = None
+        self._normalized_band_powers = None
         self._samples_received = 0
         self._service = None
 
@@ -259,7 +311,7 @@ class StreamWindow(QtWidgets.QWidget):
         self._raw_plot_data[:, -chunk_len:] = chunk
         self._samples_received += chunk_len
 
-    def _update_fft_plot(self) -> None:
+    def _update_spectral_views(self) -> None:
         if self._service is None or self._stream_started_monotonic is None:
             return
         if self._samples_received < self._processing_samples:
@@ -287,56 +339,161 @@ class StreamWindow(QtWidgets.QWidget):
         for idx, curve in enumerate(self._fft_curves):
             curve.setData(freqs[freq_mask], self._smoothed_fft_amplitude[idx, freq_mask])
 
+        intensity = compute_head_intensity_std(
+            filtered,
+            self._sample_rate,
+            int(StreamNumeric.HEAD_INTENSITY_WINDOW_SECONDS),
+        )
+        polarity, ref_idx = compute_head_polarity_openbci(
+            filtered,
+            self._sample_rate,
+            int(StreamNumeric.HEAD_INTENSITY_WINDOW_SECONDS),
+        )
+        self._update_headplot(intensity, polarity)
+        self._band_label.setText(
+            f"head std max: {float(np.max(intensity)):.2f} uV | ref ch: {ref_idx + 1} | "
+            f"spectral @ {int(StreamNumeric.SPECTRAL_REFRESH_MS)}ms"
+        )
+
+        band_powers = compute_band_powers_openbci(
+            self._smoothed_fft_amplitude,
+            freqs,
+            self._fft_n,
+            self._sample_rate,
+            self._band_edges,
+        )
+        self._normalized_band_powers = normalize_band_powers_per_channel(
+            band_powers,
+            float(StreamFloat.BAND_POWER_EPS),
+        )
+        if self._band_power_window is not None and self._band_power_window.isVisible():
+            self._band_power_window.update_powers(self._normalized_band_powers)
+
     def _init_headplot(self) -> None:
-        self._headmap_model = build_idw_headmap_model(
+        print("Building OpenBCI headplot diffusion weights...")
+        self._headmap_model = build_openbci_headmap_model(
             self._channel_positions,
             int(StreamNumeric.HEADMAP_GRID_SIZE),
-            float(StreamFloat.HEADMAP_IDW_POWER),
-            float(StreamFloat.HEADMAP_IDW_EPS),
+            float(StreamFloat.ELECTRODE_REL_DIAM),
+            int(StreamNumeric.HEADMAP_DECIMATION),
         )
-        self._head_colormap = pg.colormap.get("viridis")
-        self._head_lut = self._head_colormap.getLookupTable(0.0, 1.0, 256, alpha=True)
+        print("Headplot weights ready.")
+
         self._head_image = pg.ImageItem()
         self._head_image.setRect(QtCore.QRectF(-1.0, -1.0, 2.0, 2.0))
+        self._head_image.setZValue(self._HEAD_Z_IMAGE)
         self._head_widget.addItem(self._head_image)
 
         theta = np.linspace(0.0, 2.0 * np.pi, 200)
-        self._head_widget.plot(np.cos(theta), np.sin(theta), pen=pg.mkPen(width=2))
-        self._head_widget.plot([0.0, -0.08], [1.06, 0.95], pen=pg.mkPen(width=2))
-        self._head_widget.plot([0.0, 0.08], [1.06, 0.95], pen=pg.mkPen(width=2))
-        self._head_widget.plot([-1.0, -1.0], [0.15, -0.15], pen=pg.mkPen(width=2))
-        self._head_widget.plot([1.0, 1.0], [0.15, -0.15], pen=pg.mkPen(width=2))
-        self._update_headplot(np.zeros(len(self._channel_positions), dtype=np.float64))
+        outline_pen = pg.mkPen(width=2)
+        self._head_outline_items = [
+            self._head_widget.plot(np.cos(theta), np.sin(theta), pen=outline_pen),
+            self._head_widget.plot([0.0, -0.08], [1.06, 0.95], pen=outline_pen),
+            self._head_widget.plot([0.0, 0.08], [1.06, 0.95], pen=outline_pen),
+            self._head_widget.plot([-1.0, -1.0], [0.15, -0.15], pen=outline_pen),
+            self._head_widget.plot([1.0, 1.0], [0.15, -0.15], pen=outline_pen),
+        ]
+        for item in self._head_outline_items:
+            item.setZValue(self._HEAD_Z_OUTLINE)
 
-    def _update_headplot(self, band_power: np.ndarray) -> None:
+        self._update_headplot(
+            np.zeros(len(self._channel_positions), dtype=np.float64),
+            np.ones(len(self._channel_positions), dtype=np.float64),
+        )
+
+    def _update_headplot(self, intensity: np.ndarray, polarity: np.ndarray) -> None:
         if self._headmap_model is None:
             return
-        count = min(len(self._channel_positions), len(band_power), self._channel_count)
-        values = np.asarray(band_power[:count], dtype=np.float64)
-        if values.size == 0 or count == 0:
+        count = min(len(self._channel_positions), len(intensity), len(polarity), self._channel_count)
+        if count == 0:
             return
-        head_raw = self._headmap_model.interpolate(values)
+
+        intense_min = float(StreamFloat.HEAD_INTENSITY_MIN_UV)
+        intense_max = float(StreamFloat.HEAD_INTENSITY_MAX_UV)
+        intensity_uv = np.clip(np.asarray(intensity[:count], dtype=np.float64), intense_min, intense_max)
+        polarity_vec = np.asarray(polarity[:count], dtype=np.float64)
+        signed = intensity_uv * polarity_vec
+
+        head_raw = self._headmap_model.interpolate_voltage(signed)
         alpha = float(StreamFloat.HEADMAP_SMOOTHING_ALPHA)
-        if self._smoothed_headmap is None:
-            self._smoothed_headmap = head_raw
+        if self._smoothed_pixel_voltage is None:
+            self._smoothed_pixel_voltage = head_raw.copy()
         else:
-            self._smoothed_headmap = alpha * self._smoothed_headmap + (1.0 - alpha) * head_raw
+            valid = head_raw >= 0.0
+            self._smoothed_pixel_voltage[valid] = (
+                alpha * self._smoothed_pixel_voltage[valid] + (1.0 - alpha) * head_raw[valid]
+            )
+            invalid = ~valid
+            self._smoothed_pixel_voltage[invalid] = head_raw[invalid]
 
-        masked_values = self._smoothed_headmap[self._headmap_model.mask]
-        if masked_values.size == 0:
-            return
-        vmin = float(np.min(masked_values))
-        vmax = float(np.max(masked_values))
-        if vmax - vmin < 1e-9:
-            norm = np.full(self._smoothed_headmap.shape, 0.5, dtype=np.float64)
+        rgba = render_head_image(
+            self._smoothed_pixel_voltage,
+            self._headmap_model.mask,
+            intense_min,
+            intense_max,
+            contour_levels=int(StreamNumeric.HEAD_CONTOUR_LEVELS),
+        )
+        display = scalp_rgba_for_display(rgba)
+        display = self._composite_electrode_overlays(display)
+        self._head_image.setImage(display, autoLevels=False)
+        for item in self._head_outline_items:
+            item.setZValue(self._HEAD_Z_OUTLINE)
+
+    def _head_xy_to_pixel(self, x: float, y: float, width: int, height: int) -> tuple[float, float]:
+        px = (x + 1.0) / 2.0 * (width - 1)
+        py = (1.0 - y) / 2.0 * (height - 1)
+        return px, py
+
+    def _composite_electrode_overlays(self, display: np.ndarray) -> np.ndarray:
+        """Draw OpenBCI-style electrode rings and numeric labels onto the scalp bitmap."""
+        height, width, _ = display.shape
+        buffer = np.ascontiguousarray(display)
+        qimage = QtGui.QImage(
+            buffer.data,
+            width,
+            height,
+            4 * width,
+            QtGui.QImage.Format.Format_RGBA8888,
+        ).copy()
+
+        painter = QtGui.QPainter(qimage)
+        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
+
+        ring_pen = QtGui.QPen(QtGui.QColor(30, 30, 30))
+        ring_pen.setWidthF(1.5)
+        ring_pen.setCosmetic(True)
+        painter.setPen(ring_pen)
+        painter.setBrush(QtCore.Qt.BrushStyle.NoBrush)
+        for pos in self._channel_positions:
+            px, py = self._head_xy_to_pixel(pos.x, pos.y, width, height)
+            painter.drawEllipse(QtCore.QPointF(px, py), 6.0, 6.0)
+
+        font = QtGui.QFont()
+        font.setPointSize(9)
+        font.setBold(True)
+        painter.setFont(font)
+        painter.setPen(QtGui.QColor(30, 50, 100))
+        for pos in self._channel_positions:
+            px, py = self._head_xy_to_pixel(pos.x, pos.y, width, height)
+            rect = QtCore.QRectF(px - 12.0, py - 10.0, 24.0, 20.0)
+            painter.drawText(rect, int(QtCore.Qt.AlignmentFlag.AlignCenter), pos.display_label)
+
+        ref_x, ref_y = get_reference_position()
+        px, py = self._head_xy_to_pixel(ref_x, ref_y, width, height)
+        painter.drawText(
+            QtCore.QRectF(px - 12.0, py - 10.0, 24.0, 20.0),
+            int(QtCore.Qt.AlignmentFlag.AlignCenter),
+            "R",
+        )
+        painter.end()
+
+        qimage = qimage.convertToFormat(QtGui.QImage.Format.Format_RGBA8888)
+        bits = qimage.constBits()
+        if hasattr(bits, "asarray"):
+            out = bits.asarray(width * height * 4).reshape(height, width, 4).copy()
         else:
-            norm = (self._smoothed_headmap - vmin) / (vmax - vmin)
-            norm = np.clip(norm, 0.0, 1.0)
-
-        indices = (norm * 255.0).astype(np.uint8)
-        rgba = self._head_lut[indices]
-        rgba[..., 3] = np.where(self._headmap_model.mask, 255, 0).astype(np.uint8)
-        self._head_image.setImage(np.flipud(rgba), autoLevels=False)
+            out = np.frombuffer(bits, dtype=np.uint8, count=height * width * 4).reshape(height, width, 4).copy()
+        return out
 
     def _refresh_status(self) -> None:
         if self._service is None:
