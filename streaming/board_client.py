@@ -7,11 +7,16 @@ import numpy as np
 from brainflow.board_shim import BoardShim, BrainFlowInputParams
 
 from streaming.enums import StreamState
-from streaming.queue_bus import QueuePublisher
+from streaming.pubsub_bus import DropPolicy, PubSubBus
 from streaming.types import DataChunk, RawFrame, StreamConfig, StreamQueues, StreamStatus
 
 
 class BrainFlowStreamService:
+    _LEGACY_CHUNK_SUBSCRIBER = "legacy_chunk"
+    _LEGACY_RAW_SUBSCRIBER = "legacy_raw"
+    _PREFERRED_CHUNK_STATUS_SUBSCRIBERS = ("gui", _LEGACY_CHUNK_SUBSCRIBER)
+    _PREFERRED_RAW_STATUS_SUBSCRIBERS = ("recorder", _LEGACY_RAW_SUBSCRIBER)
+
     def __init__(self, config: StreamConfig):
         self._config = config
         self._board: Optional[BoardShim] = None
@@ -27,8 +32,10 @@ class BrainFlowStreamService:
         self._pending_eeg = np.empty((0, 0))
         self._pending_timestamps = np.empty(0)
 
-        self._chunk_publisher = QueuePublisher[DataChunk](config.chunk_queue_maxsize)
-        self._raw_publisher = QueuePublisher[RawFrame](config.raw_queue_maxsize)
+        self._chunk_bus = PubSubBus[DataChunk]()
+        self._raw_bus = PubSubBus[RawFrame]()
+        self.subscribe_chunks(self._LEGACY_CHUNK_SUBSCRIBER, config.chunk_queue_maxsize)
+        self.subscribe_raw_frames(self._LEGACY_RAW_SUBSCRIBER, config.raw_queue_maxsize)
 
     def connect(self) -> None:
         """Prepare BrainFlow session for configured board and serial port."""
@@ -62,15 +69,14 @@ class BrainFlowStreamService:
 
     def stop(self) -> None:
         """Stop acquisition thread and board stream."""
-        if self._status.state != StreamState.STREAMING:
+        if self._status.state not in (StreamState.STREAMING, StreamState.ERROR):
             return
 
         self._stop_event.set()
         if self._thread is not None:
             self._thread.join(timeout=2.0)
             self._thread = None
-        if self._board is not None:
-            self._board.stop_stream()
+        self._safe_stop_board_stream()
         self._set_state(StreamState.CONNECTED)
 
     def disconnect(self) -> None:
@@ -83,19 +89,73 @@ class BrainFlowStreamService:
         self._set_state(StreamState.DISCONNECTED)
 
     def get_queue(self) -> Queue[DataChunk]:
-        """Return queue containing EEG-only data chunks for consumers."""
-        return self._chunk_publisher.get_queue()
+        """Return legacy EEG chunk queue for compatibility."""
+        queue = self._chunk_bus.get_queue(self._LEGACY_CHUNK_SUBSCRIBER)
+        if queue is None:
+            return self.subscribe_chunks(
+                self._LEGACY_CHUNK_SUBSCRIBER,
+                self._config.chunk_queue_maxsize,
+            )
+        return queue
 
     def get_raw_queue(self) -> Queue[RawFrame]:
-        """Return queue containing full raw frames for recording side-path."""
-        return self._raw_publisher.get_queue()
+        """Return legacy raw frame queue for compatibility."""
+        queue = self._raw_bus.get_queue(self._LEGACY_RAW_SUBSCRIBER)
+        if queue is None:
+            return self.subscribe_raw_frames(
+                self._LEGACY_RAW_SUBSCRIBER,
+                self._config.raw_queue_maxsize,
+            )
+        return queue
+
+    def subscribe_chunks(
+        self,
+        subscriber_name: str,
+        maxsize: int | None = None,
+        drop_policy: DropPolicy = "keep_latest",
+    ) -> Queue[DataChunk]:
+        size = self._config.chunk_queue_maxsize if maxsize is None else maxsize
+        return self._chunk_bus.subscribe(subscriber_name, size, drop_policy)
+
+    def unsubscribe_chunks(self, subscriber_name: str) -> None:
+        self._chunk_bus.unsubscribe(subscriber_name)
+
+    def subscribe_raw_frames(
+        self,
+        subscriber_name: str,
+        maxsize: int | None = None,
+        drop_policy: DropPolicy = "keep_latest",
+    ) -> Queue[RawFrame]:
+        size = self._config.raw_queue_maxsize if maxsize is None else maxsize
+        return self._raw_bus.subscribe(subscriber_name, size, drop_policy)
+
+    def unsubscribe_raw_frames(self, subscriber_name: str) -> None:
+        self._raw_bus.unsubscribe(subscriber_name)
+
+    def get_chunk_subscriber_queue_size(self, subscriber_name: str) -> int:
+        return self._chunk_bus.get_queue_size(subscriber_name)
+
+    def get_chunk_subscriber_dropped(self, subscriber_name: str) -> int:
+        return self._chunk_bus.get_dropped_count(subscriber_name)
+
+    def get_raw_subscriber_queue_size(self, subscriber_name: str) -> int:
+        return self._raw_bus.get_queue_size(subscriber_name)
+
+    def get_raw_subscriber_dropped(self, subscriber_name: str) -> int:
+        return self._raw_bus.get_dropped_count(subscriber_name)
 
     def get_status(self) -> StreamStatus:
         """Return snapshot of current stream and queue health counters."""
         with self._status_lock:
             status = StreamStatus(**self._status.__dict__)
-            status.queue_size = self._chunk_publisher.get_queue().qsize()
-            status.raw_queue_size = self._raw_publisher.get_queue().qsize()
+            status.queue_size = self._preferred_queue_size(
+                self._chunk_bus,
+                self._PREFERRED_CHUNK_STATUS_SUBSCRIBERS,
+            )
+            status.raw_queue_size = self._preferred_queue_size(
+                self._raw_bus,
+                self._PREFERRED_RAW_STATUS_SUBSCRIBERS,
+            )
             return status
 
     def get_sample_rate_hz(self) -> int:
@@ -121,9 +181,7 @@ class BrainFlowStreamService:
                 self._pull_once()
                 time.sleep(poll_s)
         except Exception as exc:
-            with self._status_lock:
-                self._status.last_error = str(exc)
-            self._set_state(StreamState.ERROR)
+            self._handle_acquisition_error(exc)
 
     def _pull_once(self) -> None:
         if self._board is None:
@@ -135,7 +193,7 @@ class BrainFlowStreamService:
 
         host_ts = time.time()
         raw_frame = RawFrame(sequence_id=self._raw_seq, host_timestamp=host_ts, frame_data=frame.copy())
-        dropped_raw = self._raw_publisher.publish_keep_latest(raw_frame)
+        dropped_raw = self._raw_bus.publish(raw_frame)
         self._raw_seq += 1
 
         eeg = frame[list(self._eeg_channels), :]
@@ -157,18 +215,43 @@ class BrainFlowStreamService:
                 eeg_channel_indices=self._eeg_channels,
                 eeg_data=eeg_chunk,
             )
-            dropped_chunk = self._chunk_publisher.publish_keep_latest(chunk)
+            dropped_chunk = self._chunk_bus.publish(chunk)
             with self._status_lock:
                 self._status.produced_chunks += 1
-                if dropped_chunk:
-                    self._status.dropped_chunks += 1
+                self._status.dropped_chunks += dropped_chunk
             self._chunk_seq += 1
 
         with self._status_lock:
             self._status.produced_raw_frames += 1
-            if dropped_raw:
-                self._status.dropped_raw_frames += 1
+            self._status.dropped_raw_frames += dropped_raw
 
     def _set_state(self, state: StreamState) -> None:
         with self._status_lock:
             self._status.state = state
+
+    def _safe_stop_board_stream(self) -> None:
+        if self._board is None:
+            return
+        try:
+            self._board.stop_stream()
+        except Exception:
+            # Best-effort cleanup path; caller updates error/status.
+            pass
+
+    def _handle_acquisition_error(self, exc: Exception) -> None:
+        """Persist error details and force stream cleanup before entering ERROR state."""
+        self._stop_event.set()
+        self._safe_stop_board_stream()
+        if self._thread is not None and self._thread.is_alive():
+            self._thread = None
+        with self._status_lock:
+            self._status.last_error = str(exc)
+        self._set_state(StreamState.ERROR)
+
+    @staticmethod
+    def _preferred_queue_size(bus: PubSubBus, names: Tuple[str, ...]) -> int:
+        for name in names:
+            queue = bus.get_queue(name)
+            if queue is not None:
+                return queue.qsize()
+        return 0

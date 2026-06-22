@@ -85,7 +85,7 @@ def _where_are_the_pixels(
             best_elec = -1
             for ielec in range(n_elec):
                 ex, ey = electrode_xy[ielec]
-                dist = max(1.0, float(np.hypot(px - ex, py - ey)))
+                dist = max(_IDW_EPS, float(np.hypot(px - ex, py - ey)))
                 if dist < elec_radius:
                     best_elec = ielec
             within_electrode[ix, iy] = best_elec

@@ -1,7 +1,6 @@
 import argparse
 import sys
 import time
-from pathlib import Path
 from queue import Empty
 from typing import List
 
@@ -11,38 +10,50 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from Realtime_processing.headmap import OpenBCIHeadmapModel, build_openbci_headmap_model
 from Realtime_processing.headplot_render import render_head_image, scalp_rgba_for_display
+from Realtime_processing.pipeline_runtime import (
+    DisplaySnapshot,
+    build_display_snapshot,
+    build_spectral_snapshot,
+)
 from Realtime_processing.montage import (
     ChannelPosition,
     get_default_16ch_positions,
     get_reference_position,
 )
+from decoder.config import DecoderTaskType, DeploymentMode
 from gui.band_power_window import BandPowerWindow
-from Realtime_processing.gui_preprocessing import (
-    compute_band_powers_openbci,
-    compute_gui_fft_amplitude,
-    compute_head_intensity_std,
-    compute_head_polarity_openbci,
-    normalize_band_powers_per_channel,
-    run_gui_filter_pipeline,
-    smooth_fft_amplitude_openbci,
-)
-from streaming.board_client import BrainFlowStreamService
-from streaming.enums import BoardIdsEnum, StreamFloat, StreamNumeric
-from streaming.recorder import RawFrameRecorder
-from streaming.types import StreamConfig
+from gui.stream_controller import StreamController
+from streaming.enums import StreamFloat, StreamNumeric
 
 
 class StreamWindow(QtWidgets.QWidget):
     _HEAD_Z_IMAGE = 0
     _HEAD_Z_OUTLINE = 10
+    _HEAD_XY_RANGE = (-1.15, 1.15)
+    _HEAD_Z_SCATTER = 20
+    _HEAD_Z_LABEL = 30
 
-    def __init__(self, serial_port: str, recordings_dir: str):
+    def __init__(
+        self,
+        serial_port: str,
+        recordings_dir: str,
+        decoder_task_type: DecoderTaskType = "ssvep",
+        decoder_model_path: str = "",
+        decoder_manifest_path: str = "",
+        decoder_deployment_mode: DeploymentMode = "dev",
+    ):
         super().__init__()
-        self.setWindowTitle("BCI Phase2.1 Preprocessing Monitor")
+        self.setWindowTitle("EEG Realtime Procesing GUI")
         self._serial_port = serial_port
         self._recordings_dir = recordings_dir
-        self._service: BrainFlowStreamService | None = None
-        self._recorder: RawFrameRecorder | None = None
+        self._stream_controller = StreamController(
+            serial_port=serial_port,
+            recordings_dir=recordings_dir,
+            decoder_task_type=decoder_task_type,
+            decoder_model_path=decoder_model_path,
+            decoder_manifest_path=decoder_manifest_path,
+            decoder_deployment_mode=decoder_deployment_mode,
+        )
         self._sample_rate = 125
         self._channel_count = 16
         self._window_samples = self._sample_rate * int(StreamNumeric.GUI_WINDOW_SECONDS)
@@ -57,11 +68,14 @@ class StreamWindow(QtWidgets.QWidget):
         )
         self._headmap_model: OpenBCIHeadmapModel | None = None
         self._smoothed_pixel_voltage: np.ndarray | None = None
+        self._electrode_scatter: pg.ScatterPlotItem | None = None
+        self._electrode_labels: List[pg.TextItem] = []
         self._head_outline_items: List[pg.PlotDataItem] = []
+        self._head_image_rect_initialized = False
         self._normalized_band_powers: np.ndarray | None = None
+        self._latest_display_snapshot: DisplaySnapshot | None = None
         self._band_power_window: BandPowerWindow | None = None
         self._band_edges = self._default_band_edges()
-        self._stream_started_monotonic: float | None = None
         self._samples_received = 0
         self._build_ui()
 
@@ -104,6 +118,7 @@ class StreamWindow(QtWidgets.QWidget):
 
         self._health_label = QtWidgets.QLabel("chunks: 0 | dropped: 0 | queue: 0 | uptime_s: 0.0")
         self._recorder_label = QtWidgets.QLabel("recorder: idle")
+        self._decoder_label = QtWidgets.QLabel("decoder: idle")
         self._band_label = QtWidgets.QLabel("spectral: head std + band power @ 40ms")
 
         body = QtWidgets.QHBoxLayout()
@@ -132,7 +147,8 @@ class StreamWindow(QtWidgets.QWidget):
         self._fft_widget.setLabel("left", "Amplitude (uV)")
         self._fft_widget.setLabel("bottom", "frequency (Hz)")
         self._fft_widget.setXRange(0.1, 60.0, padding=0.0)
-        self._fft_widget.setYRange(0.1, float(StreamFloat.FFT_DISPLAY_Y_MAX_UV), padding=0.0)
+        fft_view = self._fft_widget.getViewBox()
+        fft_view.enableAutoRange(x=False, y=True)
         self._fft_curves: List[pg.PlotDataItem] = []
         for idx in range(self._channel_count):
             color = pg.intColor(idx, hues=self._channel_count)
@@ -143,12 +159,14 @@ class StreamWindow(QtWidgets.QWidget):
         self._head_widget.setAspectLocked(True)
         self._head_widget.setMenuEnabled(False)
         self._head_widget.setMouseEnabled(x=False, y=False)
+        self._head_widget.setRenderHint(QtGui.QPainter.RenderHint.SmoothPixmapTransform, True)
         self._head_widget.hideAxis("left")
         self._head_widget.hideAxis("bottom")
         self._head_widget.hideAxis("top")
         self._head_widget.hideAxis("right")
-        self._head_widget.setXRange(-1.15, 1.15, padding=0.0)
-        self._head_widget.setYRange(-1.15, 1.15, padding=0.0)
+        # Keep headplot in a fixed head-centric coordinate frame.
+        self._head_widget.hideButtons()
+        self._set_headplot_view_range()
         self._init_headplot()
         right_panel.addWidget(self._head_widget, stretch=2)
 
@@ -160,6 +178,7 @@ class StreamWindow(QtWidgets.QWidget):
         root.addLayout(controls)
         root.addWidget(self._health_label)
         root.addWidget(self._recorder_label)
+        root.addWidget(self._decoder_label)
         root.addWidget(self._band_label)
         root.addLayout(body)
         self.setLayout(root)
@@ -188,86 +207,69 @@ class StreamWindow(QtWidgets.QWidget):
         self._band_power_button.setText("Show band power")
 
     def _connect(self) -> None:
-        config = StreamConfig(serial_port=self._serial_port, board_id=int(BoardIdsEnum.CYTON_DAISY))
-        self._service = BrainFlowStreamService(config)
-        self._service.connect()
-        self._sample_rate = self._service.get_sample_rate_hz()
+        service = self._stream_controller.connect()
+        self._sample_rate = service.get_sample_rate_hz()
         self._processing_samples = self._sample_rate * int(StreamNumeric.GUI_PROCESSING_BUFFER_SECONDS)
         self._window_samples = self._sample_rate * int(StreamNumeric.GUI_WINDOW_SECONDS)
         self._raw_plot_data = np.zeros((self._channel_count, self._processing_samples))
         self._plot_data = np.zeros((self._channel_count, self._window_samples))
-        self._smoothed_fft_amplitude = None
-        self._smoothed_pixel_voltage = None
-        self._normalized_band_powers = None
-        self._samples_received = 0
+        self._reset_runtime_state()
         self._status_label.setText("state: connected")
         self._connect_button.setEnabled(False)
         self._start_button.setEnabled(True)
         self._disconnect_button.setEnabled(True)
 
     def _start_stream(self) -> None:
-        if self._service is None:
+        service = self._stream_controller.get_service()
+        if service is None:
             return
-        recordings_dir = Path(self._recordings_dir)
-        self._recorder = RawFrameRecorder(
-            raw_queue=self._service.get_raw_queue(),
-            output_root=str(recordings_dir),
-            board_id=int(BoardIdsEnum.CYTON_DAISY),
-            eeg_channels=self._service.get_eeg_channels(),
-            sample_rate_hz=self._service.get_sample_rate_hz(),
-        )
-        session_dir = self._recorder.start()
-        self._service.start()
-        self._stream_started_monotonic = time.monotonic()
-        self._smoothed_fft_amplitude = None
-        self._smoothed_pixel_voltage = None
-        self._normalized_band_powers = None
-        self._samples_received = 0
+        try:
+            session_dir = self._stream_controller.start()
+        except Exception as exc:
+            self._status_label.setText(f"state: start_failed ({exc})")
+            return
+        self._reset_runtime_state()
         self._status_label.setText("state: streaming")
         self._recorder_label.setText(f"recorder: {session_dir}")
         self._start_button.setEnabled(False)
         self._stop_button.setEnabled(True)
 
     def _stop_stream(self) -> None:
-        if self._service is None:
+        service = self._stream_controller.get_service()
+        if service is None:
             return
-        self._service.stop()
-        if self._recorder is not None:
-            self._recorder.stop()
-            self._recorder_label.setText(f"recorder frames: {self._recorder.frames_written()}")
-            self._recorder = None
-        self._stream_started_monotonic = None
-        self._smoothed_fft_amplitude = None
-        self._smoothed_pixel_voltage = None
-        self._normalized_band_powers = None
-        self._samples_received = 0
+        frames_written = self._stream_controller.stop()
+        self._recorder_label.setText(f"recorder frames: {frames_written}")
+        self._reset_runtime_state()
         self._status_label.setText("state: connected")
         self._start_button.setEnabled(True)
         self._stop_button.setEnabled(False)
 
     def _disconnect(self) -> None:
-        if self._service is None:
+        service = self._stream_controller.get_service()
+        if service is None:
             return
-        if self._recorder is not None:
-            self._recorder.stop()
-            self._recorder = None
-        self._service.disconnect()
+        self._stream_controller.disconnect()
         self._status_label.setText("state: disconnected")
         self._connect_button.setEnabled(True)
         self._start_button.setEnabled(False)
         self._stop_button.setEnabled(False)
         self._disconnect_button.setEnabled(False)
-        self._stream_started_monotonic = None
+        self._recorder_label.setText("recorder: idle")
+        self._decoder_label.setText("decoder: idle")
+        self._reset_runtime_state()
+ 
+    def _reset_runtime_state(self) -> None:
         self._smoothed_fft_amplitude = None
         self._smoothed_pixel_voltage = None
         self._normalized_band_powers = None
+        self._latest_display_snapshot = None
         self._samples_received = 0
-        self._service = None
 
     def _drain_queue(self) -> None:
-        if self._service is None:
+        chunk_queue = self._stream_controller.get_chunk_queue()
+        if chunk_queue is None:
             return
-        chunk_queue = self._service.get_queue()
         drained = 0
         for _ in range(64):
             try:
@@ -280,18 +282,21 @@ class StreamWindow(QtWidgets.QWidget):
             self._refresh_status()
             return
 
-        filtered_processing = run_gui_filter_pipeline(
+        display_snapshot = build_display_snapshot(
             self._raw_plot_data,
             self._sample_rate,
+            self._window_samples,
             float(StreamFloat.BANDPASS_LOW_HZ),
             float(StreamFloat.BANDPASS_HIGH_HZ),
             float(StreamFloat.NOTCH_HZ),
         )
-        self._plot_data = filtered_processing[:, -self._window_samples :]
+        self._latest_display_snapshot = display_snapshot
+        self._plot_data = display_snapshot.window_data
         dt = 1.0 / max(self._sample_rate, 1)
         elapsed_now = 0.0
-        if self._stream_started_monotonic is not None:
-            elapsed_now = max(time.monotonic() - self._stream_started_monotonic, 0.0)
+        started = self._stream_controller.stream_started_monotonic
+        if started is not None:
+            elapsed_now = max(time.monotonic() - started, 0.0)
         x_end = elapsed_now
         x_start = max(x_end - self._window_samples * dt, 0.0)
         x = np.linspace(x_start, x_end, self._window_samples, endpoint=False)
@@ -312,60 +317,47 @@ class StreamWindow(QtWidgets.QWidget):
         self._samples_received += chunk_len
 
     def _update_spectral_views(self) -> None:
-        if self._service is None or self._stream_started_monotonic is None:
+        if self._stream_controller.get_service() is None or self._stream_controller.stream_started_monotonic is None:
             return
         if self._samples_received < self._processing_samples:
             return
-        if self._raw_plot_data.shape[1] < self._fft_n:
+        if self._latest_display_snapshot is None:
+            return
+        if self._latest_display_snapshot.filtered_processing.shape[1] < self._fft_n:
             return
 
-        filtered = run_gui_filter_pipeline(
-            self._raw_plot_data,
+        spectral_snapshot = build_spectral_snapshot(
+            self._latest_display_snapshot.filtered_processing,
             self._sample_rate,
-            float(StreamFloat.BANDPASS_LOW_HZ),
-            float(StreamFloat.BANDPASS_HIGH_HZ),
-            float(StreamFloat.NOTCH_HZ),
-        )
-        freqs, amplitude = compute_gui_fft_amplitude(filtered, self._sample_rate, self._fft_n)
-        self._smoothed_fft_amplitude = smooth_fft_amplitude_openbci(
-            amplitude,
+            self._fft_n,
             self._smoothed_fft_amplitude,
             float(StreamFloat.FFT_SMOOTHING_ALPHA),
             float(StreamFloat.FFT_MIN_AMPLITUDE_UV),
+            int(StreamNumeric.HEAD_INTENSITY_WINDOW_SECONDS),
+            self._band_edges,
+            float(StreamFloat.BAND_POWER_EPS),
         )
+        self._smoothed_fft_amplitude = spectral_snapshot.smoothed_fft_amplitude
 
         max_freq = 60.0
-        freq_mask = freqs <= max_freq
+        freq_mask = spectral_snapshot.freqs <= max_freq
         for idx, curve in enumerate(self._fft_curves):
-            curve.setData(freqs[freq_mask], self._smoothed_fft_amplitude[idx, freq_mask])
+            curve.setData(
+                spectral_snapshot.freqs[freq_mask],
+                spectral_snapshot.smoothed_fft_amplitude[idx, freq_mask],
+            )
 
-        intensity = compute_head_intensity_std(
-            filtered,
-            self._sample_rate,
-            int(StreamNumeric.HEAD_INTENSITY_WINDOW_SECONDS),
+        self._update_headplot(
+            spectral_snapshot.head_intensity,
+            spectral_snapshot.head_polarity,
         )
-        polarity, ref_idx = compute_head_polarity_openbci(
-            filtered,
-            self._sample_rate,
-            int(StreamNumeric.HEAD_INTENSITY_WINDOW_SECONDS),
-        )
-        self._update_headplot(intensity, polarity)
         self._band_label.setText(
-            f"head std max: {float(np.max(intensity)):.2f} uV | ref ch: {ref_idx + 1} | "
+            f"head std max: {float(np.max(spectral_snapshot.head_intensity)):.2f} uV | "
+            f"ref ch: {spectral_snapshot.head_ref_idx + 1} | "
             f"spectral @ {int(StreamNumeric.SPECTRAL_REFRESH_MS)}ms"
         )
 
-        band_powers = compute_band_powers_openbci(
-            self._smoothed_fft_amplitude,
-            freqs,
-            self._fft_n,
-            self._sample_rate,
-            self._band_edges,
-        )
-        self._normalized_band_powers = normalize_band_powers_per_channel(
-            band_powers,
-            float(StreamFloat.BAND_POWER_EPS),
-        )
+        self._normalized_band_powers = spectral_snapshot.normalized_band_powers
         if self._band_power_window is not None and self._band_power_window.isVisible():
             self._band_power_window.update_powers(self._normalized_band_powers)
 
@@ -380,7 +372,6 @@ class StreamWindow(QtWidgets.QWidget):
         print("Headplot weights ready.")
 
         self._head_image = pg.ImageItem()
-        self._head_image.setRect(QtCore.QRectF(-1.0, -1.0, 2.0, 2.0))
         self._head_image.setZValue(self._HEAD_Z_IMAGE)
         self._head_widget.addItem(self._head_image)
 
@@ -395,6 +386,51 @@ class StreamWindow(QtWidgets.QWidget):
         ]
         for item in self._head_outline_items:
             item.setZValue(self._HEAD_Z_OUTLINE)
+
+        ring_pen = pg.mkPen(color=(40, 40, 40), width=1.5)
+        elec_diam = float(StreamFloat.ELECTRODE_REL_DIAM) * 2.0
+        spots = []
+        for pos in self._channel_positions:
+            spots.append(
+                {
+                    "pos": (pos.x, pos.y),
+                    "size": elec_diam,
+                    "pen": ring_pen,
+                    "brush": pg.mkBrush(0, 0, 0, 0),
+                }
+            )
+        self._electrode_scatter = pg.ScatterPlotItem(
+            size=elec_diam,
+            symbol="o",
+            pxMode=False,
+        )
+        self._electrode_scatter.addPoints(spots)
+        self._electrode_scatter.setZValue(self._HEAD_Z_SCATTER)
+        self._head_widget.addItem(self._electrode_scatter)
+
+        label_font = QtGui.QFont()
+        label_font.setPointSize(10)
+        label_font.setBold(True)
+        label_color = pg.mkColor(30, 50, 100)
+        for pos in self._channel_positions:
+            label = pg.TextItem(
+                pos.display_label or pos.name,
+                anchor=(0.5, 0.5),
+                color=label_color,
+            )
+            label.setFont(label_font)
+            label.setPos(pos.x, pos.y)
+            label.setZValue(self._HEAD_Z_LABEL)
+            self._head_widget.addItem(label)
+            self._electrode_labels.append(label)
+
+        ref_x, ref_y = get_reference_position()
+        ref_label = pg.TextItem("R", anchor=(0.5, 0.5), color=label_color)
+        ref_label.setFont(label_font)
+        ref_label.setPos(ref_x, ref_y)
+        ref_label.setZValue(self._HEAD_Z_LABEL)
+        self._head_widget.addItem(ref_label)
+        self._electrode_labels.append(ref_label)
 
         self._update_headplot(
             np.zeros(len(self._channel_positions), dtype=np.float64),
@@ -434,71 +470,35 @@ class StreamWindow(QtWidgets.QWidget):
             contour_levels=int(StreamNumeric.HEAD_CONTOUR_LEVELS),
         )
         display = scalp_rgba_for_display(rgba)
-        display = self._composite_electrode_overlays(display)
         self._head_image.setImage(display, autoLevels=False)
+        # Important: setRect must happen after first setImage so width/height are known.
+        if not self._head_image_rect_initialized:
+            self._head_image.setRect(QtCore.QRectF(-1.0, -1.0, 2.0, 2.0))
+            self._head_image_rect_initialized = True
+        self._set_headplot_view_range()
+        self._apply_headplot_z_order()
+
+    def _apply_headplot_z_order(self) -> None:
+        self._head_image.setZValue(self._HEAD_Z_IMAGE)
         for item in self._head_outline_items:
             item.setZValue(self._HEAD_Z_OUTLINE)
+        if self._electrode_scatter is not None:
+            self._electrode_scatter.setZValue(self._HEAD_Z_SCATTER)
+        for label in self._electrode_labels:
+            label.setZValue(self._HEAD_Z_LABEL)
 
-    def _head_xy_to_pixel(self, x: float, y: float, width: int, height: int) -> tuple[float, float]:
-        px = (x + 1.0) / 2.0 * (width - 1)
-        py = (1.0 - y) / 2.0 * (height - 1)
-        return px, py
-
-    def _composite_electrode_overlays(self, display: np.ndarray) -> np.ndarray:
-        """Draw OpenBCI-style electrode rings and numeric labels onto the scalp bitmap."""
-        height, width, _ = display.shape
-        buffer = np.ascontiguousarray(display)
-        qimage = QtGui.QImage(
-            buffer.data,
-            width,
-            height,
-            4 * width,
-            QtGui.QImage.Format.Format_RGBA8888,
-        ).copy()
-
-        painter = QtGui.QPainter(qimage)
-        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, True)
-
-        ring_pen = QtGui.QPen(QtGui.QColor(30, 30, 30))
-        ring_pen.setWidthF(1.5)
-        ring_pen.setCosmetic(True)
-        painter.setPen(ring_pen)
-        painter.setBrush(QtCore.Qt.BrushStyle.NoBrush)
-        for pos in self._channel_positions:
-            px, py = self._head_xy_to_pixel(pos.x, pos.y, width, height)
-            painter.drawEllipse(QtCore.QPointF(px, py), 6.0, 6.0)
-
-        font = QtGui.QFont()
-        font.setPointSize(9)
-        font.setBold(True)
-        painter.setFont(font)
-        painter.setPen(QtGui.QColor(30, 50, 100))
-        for pos in self._channel_positions:
-            px, py = self._head_xy_to_pixel(pos.x, pos.y, width, height)
-            rect = QtCore.QRectF(px - 12.0, py - 10.0, 24.0, 20.0)
-            painter.drawText(rect, int(QtCore.Qt.AlignmentFlag.AlignCenter), pos.display_label)
-
-        ref_x, ref_y = get_reference_position()
-        px, py = self._head_xy_to_pixel(ref_x, ref_y, width, height)
-        painter.drawText(
-            QtCore.QRectF(px - 12.0, py - 10.0, 24.0, 20.0),
-            int(QtCore.Qt.AlignmentFlag.AlignCenter),
-            "R",
-        )
-        painter.end()
-
-        qimage = qimage.convertToFormat(QtGui.QImage.Format.Format_RGBA8888)
-        bits = qimage.constBits()
-        if hasattr(bits, "asarray"):
-            out = bits.asarray(width * height * 4).reshape(height, width, 4).copy()
-        else:
-            out = np.frombuffer(bits, dtype=np.uint8, count=height * width * 4).reshape(height, width, 4).copy()
-        return out
+    def _set_headplot_view_range(self) -> None:
+        """Pin headplot view to normalized head coordinates; avoid accidental auto-range."""
+        view_box = self._head_widget.getViewBox()
+        view_box.enableAutoRange(x=False, y=False)
+        lo, hi = self._HEAD_XY_RANGE
+        self._head_widget.setXRange(lo, hi, padding=0.0)
+        self._head_widget.setYRange(lo, hi, padding=0.0)
 
     def _refresh_status(self) -> None:
-        if self._service is None:
+        status = self._stream_controller.get_status()
+        if status is None:
             return
-        status = self._service.get_status()
         uptime = 0.0
         if status.started_monotonic > 0:
             uptime = time.monotonic() - status.started_monotonic
@@ -507,19 +507,68 @@ class StreamWindow(QtWidgets.QWidget):
             f"{status.produced_chunks} | dropped: {status.dropped_chunks} | "
             f"queue: {status.queue_size} | uptime_s: {uptime:.1f}"
         )
-        if self._stream_started_monotonic is not None and self._samples_received < self._processing_samples:
+        if self._stream_controller.stream_started_monotonic is not None and self._samples_received < self._processing_samples:
             remaining = self._processing_samples - self._samples_received
             warmup_s = remaining / max(self._sample_rate, 1)
             self._status_label.setText(f"state: streaming (warming_up {warmup_s:.1f}s)")
-        elif self._stream_started_monotonic is not None:
+        elif self._stream_controller.stream_started_monotonic is not None:
             self._status_label.setText("state: streaming")
+        self._refresh_decoder_status()
+
+    def _refresh_decoder_status(self) -> None:
+        decoder_status = self._stream_controller.get_decoder_runtime().get_status()
+        if not decoder_status.running:
+            preflight = self._stream_controller.get_decoder_preflight()
+            if preflight is None:
+                self._decoder_label.setText("decoder: idle")
+                return
+            if preflight.ok:
+                warn = f" | warn={'; '.join(preflight.warnings)}" if preflight.warnings else ""
+                self._decoder_label.setText(
+                    f"decoder: preflight_ok | mode={preflight.backend_mode}{warn}"
+                )
+            else:
+                self._decoder_label.setText(
+                    "decoder: preflight_failed | err=" + "; ".join(preflight.errors)
+                )
+            return
+        self._decoder_label.setText(
+            "decoder: "
+            f"{decoder_status.backend_name} | "
+            f"mode={decoder_status.backend_mode} | "
+            f"loaded={int(decoder_status.backend_loaded)} | "
+            f"label={decoder_status.last_label or '-'} | "
+            f"conf={decoder_status.last_confidence:.3f} | "
+            f"chunks={decoder_status.chunks_received} | "
+            f"infer={decoder_status.inference_count} | "
+            f"queue={decoder_status.queue_size} | "
+            f"dropped={decoder_status.dropped_by_bus} | "
+            f"last_seq={decoder_status.last_sequence_id} | "
+            f"fail={decoder_status.failures}"
+        )
+        if decoder_status.last_error:
+            self._decoder_label.setText(f"{self._decoder_label.text()} | err={decoder_status.last_error}")
 
 
-def run_gui(serial_port: str, recordings_dir: str) -> None:
+def run_gui(
+    serial_port: str,
+    recordings_dir: str,
+    decoder_task_type: DecoderTaskType = "ssvep",
+    decoder_model_path: str = "",
+    decoder_manifest_path: str = "",
+    decoder_deployment_mode: DeploymentMode = "dev",
+) -> None:
     """Launch real-time preprocessing GUI for 16-channel EEG monitoring."""
     app = QtWidgets.QApplication(sys.argv)
     pg.setConfigOptions(antialias=False)
-    window = StreamWindow(serial_port=serial_port, recordings_dir=recordings_dir)
+    window = StreamWindow(
+        serial_port=serial_port,
+        recordings_dir=recordings_dir,
+        decoder_task_type=decoder_task_type,
+        decoder_model_path=decoder_model_path,
+        decoder_manifest_path=decoder_manifest_path,
+        decoder_deployment_mode=decoder_deployment_mode,
+    )
     window.resize(1500, 850)
     window.show()
     app.exec()
@@ -527,11 +576,22 @@ def run_gui(serial_port: str, recordings_dir: str) -> None:
 
 def main() -> None:
     """Run GUI entrypoint with serial port and recording path args."""
-    parser = argparse.ArgumentParser(description="Phase 2.1 BCI preprocessing GUI")
+    parser = argparse.ArgumentParser(description="EEG Realtime Procesing GUI")
     parser.add_argument("--serial-port", required=True, type=str)
     parser.add_argument("--recordings-dir", default="recordings", type=str)
+    parser.add_argument("--decoder-task-type", default="ssvep", choices=("ssvep", "mi"))
+    parser.add_argument("--decoder-model-path", default="", type=str)
+    parser.add_argument("--decoder-manifest", default="", type=str)
+    parser.add_argument("--decoder-deployment-mode", default="dev", choices=("dev", "live"))
     args = parser.parse_args()
-    run_gui(serial_port=args.serial_port, recordings_dir=args.recordings_dir)
+    run_gui(
+        serial_port=args.serial_port,
+        recordings_dir=args.recordings_dir,
+        decoder_task_type=args.decoder_task_type,
+        decoder_model_path=args.decoder_model_path,
+        decoder_manifest_path=args.decoder_manifest,
+        decoder_deployment_mode=args.decoder_deployment_mode,
+    )
 
 
 if __name__ == "__main__":
