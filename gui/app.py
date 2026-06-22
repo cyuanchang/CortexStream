@@ -22,6 +22,7 @@ from Realtime_processing.montage import (
 )
 from decoder.config import DecoderTaskType, DeploymentMode
 from gui.band_power_window import BandPowerWindow
+from gui.ssvep_training_panel import SSVEPTrainingPanel
 from gui.stream_controller import StreamController
 from streaming.enums import StreamFloat, StreamNumeric
 
@@ -46,6 +47,7 @@ class StreamWindow(QtWidgets.QWidget):
         self.setWindowTitle("EEG Realtime Procesing GUI")
         self._serial_port = serial_port
         self._recordings_dir = recordings_dir
+        self._decoder_task_type = decoder_task_type
         self._stream_controller = StreamController(
             serial_port=serial_port,
             recordings_dir=recordings_dir,
@@ -54,6 +56,7 @@ class StreamWindow(QtWidgets.QWidget):
             decoder_manifest_path=decoder_manifest_path,
             decoder_deployment_mode=decoder_deployment_mode,
         )
+        self._ssvep_panel: SSVEPTrainingPanel | None = None
         self._sample_rate = 125
         self._channel_count = 16
         self._window_samples = self._sample_rate * int(StreamNumeric.GUI_WINDOW_SECONDS)
@@ -78,6 +81,7 @@ class StreamWindow(QtWidgets.QWidget):
         self._band_edges = self._default_band_edges()
         self._samples_received = 0
         self._build_ui()
+        self._init_optional_ssvep_panel()
 
         self._timer = QtCore.QTimer(self)
         self._timer.timeout.connect(self._drain_queue)
@@ -119,6 +123,7 @@ class StreamWindow(QtWidgets.QWidget):
         self._health_label = QtWidgets.QLabel("chunks: 0 | dropped: 0 | queue: 0 | uptime_s: 0.0")
         self._recorder_label = QtWidgets.QLabel("recorder: idle")
         self._decoder_label = QtWidgets.QLabel("decoder: idle")
+        self._ssvep_label = QtWidgets.QLabel("ssvep panel: inactive")
         self._band_label = QtWidgets.QLabel("spectral: head std + band power @ 40ms")
 
         body = QtWidgets.QHBoxLayout()
@@ -179,9 +184,23 @@ class StreamWindow(QtWidgets.QWidget):
         root.addWidget(self._health_label)
         root.addWidget(self._recorder_label)
         root.addWidget(self._decoder_label)
+        root.addWidget(self._ssvep_label)
         root.addWidget(self._band_label)
         root.addLayout(body)
         self.setLayout(root)
+
+    def _init_optional_ssvep_panel(self) -> None:
+        if self._decoder_task_type != "ssvep":
+            self._ssvep_label.setText("ssvep panel: inactive (task=mi)")
+            return
+        self._ssvep_panel = SSVEPTrainingPanel(
+            marker_writer=self._stream_controller.append_marker_event,
+            recording_active_getter=self._stream_controller.is_recording_active,
+            session_id_getter=self._stream_controller.get_active_session_id,
+            stream_start_getter=lambda: self._stream_controller.stream_started_monotonic,
+        )
+        self._ssvep_panel.show()
+        self._ssvep_label.setText("ssvep panel: active (task=ssvep)")
 
     @staticmethod
     def _default_band_edges() -> List[tuple[float, float]]:
@@ -548,6 +567,12 @@ class StreamWindow(QtWidgets.QWidget):
         )
         if decoder_status.last_error:
             self._decoder_label.setText(f"{self._decoder_label.text()} | err={decoder_status.last_error}")
+
+    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
+        if self._ssvep_panel is not None:
+            self._ssvep_panel.close()
+            self._ssvep_panel = None
+        super().closeEvent(event)
 
 
 def run_gui(

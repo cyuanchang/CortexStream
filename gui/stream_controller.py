@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import threading
 import time
 from pathlib import Path
 from queue import Queue
@@ -47,6 +49,9 @@ class StreamController:
         self._stream_started_monotonic: float | None = None
         self._gui_chunk_queue: Queue[DataChunk] | None = None
         self._recorder_raw_queue: Queue[RawFrame] | None = None
+        self._active_session_dir: Path | None = None
+        self._active_session_id: str = ""
+        self._marker_log_lock = threading.Lock()
 
     @property
     def stream_started_monotonic(self) -> float | None:
@@ -92,6 +97,8 @@ class StreamController:
         self._service.start()
         self._decoder_runtime.start(self._service)
         self._stream_started_monotonic = time.monotonic()
+        self._active_session_dir = session_dir
+        self._active_session_id = session_dir.name
         return session_dir
 
     def stop(self) -> int:
@@ -107,6 +114,8 @@ class StreamController:
             self._service.unsubscribe_raw_frames("recorder")
         self._recorder_raw_queue = None
         self._stream_started_monotonic = None
+        self._active_session_dir = None
+        self._active_session_id = ""
         return frames_written
 
     def disconnect(self) -> None:
@@ -122,6 +131,8 @@ class StreamController:
         self._gui_chunk_queue = None
         self._recorder_raw_queue = None
         self._stream_started_monotonic = None
+        self._active_session_dir = None
+        self._active_session_id = ""
 
     def get_service(self) -> BrainFlowStreamService | None:
         return self._service
@@ -147,6 +158,29 @@ class StreamController:
 
     def get_decoder_preflight(self) -> DecoderPreflightReport | None:
         return self._decoder_last_preflight
+
+    def is_recording_active(self) -> bool:
+        return self._active_session_dir is not None and self._stream_started_monotonic is not None
+
+    def get_active_session_id(self) -> str:
+        return self._active_session_id
+
+    def get_active_session_dir(self) -> Path | None:
+        return self._active_session_dir
+
+    def append_marker_event(self, event: dict) -> bool:
+        session_dir = self._active_session_dir
+        if session_dir is None:
+            return False
+        payload = dict(event)
+        payload.setdefault("session_id", self._active_session_id)
+        payload.setdefault("stream_started_monotonic", self._stream_started_monotonic or 0.0)
+        marker_path = session_dir / "ssvep_markers.jsonl"
+        line = json.dumps(payload, separators=(",", ":"))
+        with self._marker_log_lock:
+            with marker_path.open("a", encoding="utf-8") as fh:
+                fh.write(line + "\n")
+        return True
 
     def get_eeg_channels(self) -> Tuple[int, ...]:
         if self._service is None:
