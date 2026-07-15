@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+.env
+
+# Local data and recordings
+Data/
+recordings/
+recordinigs/
+
+# Model weights and training artifacts
+models/
+
+# Validation / analysis outputs (keep *.py scripts)
+Validation/*.png
+Validation/*.json
+Validation/*.csv
+Validation/**/__pycache__/
+
+# Portfolio site media (keep HTML/CSS/JS)
+docs/figures/
+docs/*.mp4
+docs/*.webm
+
+# Scratch / planning notes
+phase1_*.plan.md
+todo.md
+progress.md
+*.plan.md
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
