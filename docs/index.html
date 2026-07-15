@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>e-BCI · Real-Time Brain-Computer Interface Platform</title>
-  <meta name="description" content="End-to-end EEG acquisition, signal processing, SSVEP decoding, and neural visualization built on OpenBCI Cyton+Daisy." />
+  <title>CortexStream · Real-Time EEG Acquisition, Visualization &amp; Decoding</title>
+  <meta name="description" content="CortexStream — a closed-loop EEG platform for lag-free visualization and online neural decoding on OpenBCI Cyton+Daisy." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -14,13 +14,11 @@
 
 <!-- ── Navigation ── -->
 <nav id="nav">
-  <span class="nav-logo">e-BCI</span>
+  <span class="nav-logo">CortexStream</span>
   <div class="nav-links">
-    <a href="#overview">overview</a>
     <a href="#architecture">architecture</a>
     <a href="#interface">interface</a>
     <a href="#pipeline">pipeline</a>
-    <a href="#results">results</a>
     <a href="#stack">stack</a>
   </div>
   <a href="https://github.com/cyuanchang/BCI" class="nav-cta" target="_blank" rel="noopener">
@@ -33,12 +31,21 @@
 <!-- ── Hero ── -->
 <section id="hero">
   <div class="hero-content container">
-    <span class="hero-tag">// e-BCI &mdash; OpenBCI Cyton+Daisy &middot; 16ch &middot; 125 Hz</span>
-    <h1 class="hero-title">Real-time EEG acquisition and neural decoding.</h1>
+    <span class="hero-tag">// CortexStream &mdash; OpenBCI Cyton+Daisy &middot; 16ch &middot; 125 Hz</span>
+    <h1 class="hero-title">CortexStream: software for real-time EEG acquisition &middot; visualization &middot; neural decoding</h1>
     <p class="hero-sub">
-      End-to-end signal pipeline built from scratch in Python: live 16-channel acquisition,
-      OpenBCI-style visualization, SSVEP stimulus delivery, and EEGNet-powered online decoding.
+      A closed-loop signal pipeline built for decoupled, lag-free visualization and online decoding.
     </p>
+    <p class="hero-objective">
+      Decoding neural intent from raw EEG. CortexStream turns scalp signals into a real-time research
+      platform — acquire, monitor, and classify neural state within one integrated software stack.
+    </p>
+
+    <p class="hero-gui">
+      <span class="hero-gui-label">Live GUI</span>
+      Filtered streaming &middot; FFT frequency view &middot; RMS spatial activation &middot; Band-power monitoring
+    </p>
+
     <div class="hero-actions">
       <a href="#interface" class="btn-primary">
         <!-- Heroicons: play -->
@@ -52,85 +59,28 @@
     </div>
 
     <div class="hero-stats">
-      <div>
-        <div class="hero-stat-val">16</div>
-        <div class="hero-stat-label">EEG channels</div>
-      </div>
-      <div>
-        <div class="hero-stat-val">125 Hz</div>
-        <div class="hero-stat-label">Sample rate</div>
-      </div>
-      <div>
-        <div class="hero-stat-val">~30 ms</div>
-        <div class="hero-stat-label">GUI refresh</div>
-      </div>
-      <div>
-        <div class="hero-stat-val">5</div>
-        <div class="hero-stat-label">SSVEP frequencies</div>
-      </div>
-      <div>
-        <div class="hero-stat-val">EEGNet</div>
-        <div class="hero-stat-label">Decoder backbone</div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ── Overview ── -->
-<section id="overview">
-  <div class="container">
-    <span class="section-tag">// 01 — OVERVIEW</span>
-    <h2 class="section-heading">Decoding neural intent from raw EEG</h2>
-    <p class="section-sub">
-      Electroencephalography (EEG) measures the brain's electrical activity at the scalp.
-      This platform captures those signals in real time, processes them through a neuroscience-aligned
-      pipeline, and uses a deep-learning model to classify the user's neural state — all with
-      sub-100 ms latency on consumer hardware.
-    </p>
-
-    <div class="grid-3">
-      <div class="card fade-in">
-        <!-- Heroicons: bolt -->
-        <div class="card-icon"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" /></svg></div>
-        <h3>Real-time Acquisition</h3>
-        <p>BrainFlow drives the OpenBCI Cyton+Daisy board over serial. A pub-sub bus fans out
-           16-sample chunks to independent GUI, recorder, and decoder consumers simultaneously.</p>
-      </div>
-      <div class="card fade-in">
-        <!-- Heroicons: eye -->
-        <div class="card-icon"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg></div>
-        <h3>SSVEP Paradigm</h3>
-        <p>Steady-State Visual Evoked Potentials: the brain entrains to a flickering visual stimulus
-           at a specific frequency. This paradigm enables hands-free, high-bandwidth BCI control.</p>
-      </div>
-      <div class="card fade-in">
-        <!-- Heroicons: cpu-chip -->
-        <div class="card-icon"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 0 0 2.25-2.25V6.75a2.25 2.25 0 0 0-2.25-2.25H6.75A2.25 2.25 0 0 0 4.5 6.75v10.5a2.25 2.25 0 0 0 2.25 2.25Zm.75-12h9v9h-9v-9Z" /></svg></div>
-        <h3>EEGNet Decoder</h3>
-        <p>A compact depthwise-separable CNN (EEGNet) runs inference on rolling 2-second windows
-           with a 16-sample stride. The manifest-driven runtime supports hot-swappable model versions.</p>
-      </div>
-      <div class="card fade-in">
-        <!-- Heroicons: chart-bar -->
-        <div class="card-icon"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" /></svg></div>
-        <h3>Neural Visualization</h3>
-        <p>Live 16-channel time series, log-scale FFT spectrum, OpenBCI-style scalp head plot with
-           diffusion interpolation, and per-band power histograms (&delta;/&theta;/&alpha;/&beta;/&gamma;).</p>
-      </div>
-      <div class="card fade-in">
-        <!-- Heroicons: magnifying-glass-plus -->
-        <div class="card-icon"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607ZM10.5 7.5v6m3-3h-6" /></svg></div>
-        <h3>Offline Validation</h3>
-        <p>Automated PSD separability analysis, window-length sweep, per-channel SNR checks,
-           and cross-session exportability scoring before any model goes live.</p>
-      </div>
-      <div class="card fade-in">
-        <!-- Heroicons: arrow-up-tray -->
-        <div class="card-icon"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" /></svg></div>
-        <h3>Train-to-Deploy Pipeline</h3>
-        <p>Record &rarr; validate &rarr; train EEGNet &rarr; offline replay gate &rarr; live inference.
-           Each model ships a versioned <code>manifest.json</code> that fully specifies its
-           preprocessing, window, and class labels.</p>
+      <div class="hero-stats-label">Current running paradigm</div>
+      <div class="hero-stats-row">
+        <div>
+          <div class="hero-stat-val">OpenBCI</div>
+          <div class="hero-stat-label">Cyton + Daisy</div>
+        </div>
+        <div>
+          <div class="hero-stat-val">16 ch</div>
+          <div class="hero-stat-label">EEG channels</div>
+        </div>
+        <div>
+          <div class="hero-stat-val">125 Hz</div>
+          <div class="hero-stat-label">Sample rate</div>
+        </div>
+        <div>
+          <div class="hero-stat-val">SSVEP + MI</div>
+          <div class="hero-stat-label">Supporting paradigms</div>
+        </div>
+        <div>
+          <div class="hero-stat-val">EEGNet</div>
+          <div class="hero-stat-label">Online decoder</div>
+        </div>
       </div>
     </div>
   </div>
@@ -139,16 +89,15 @@
 <!-- ── Architecture ── -->
 <section id="architecture" class="section-alt">
   <div class="container">
-    <span class="section-tag">// 02 — ARCHITECTURE</span>
-    <h2 class="section-heading">Pub-sub, model-agnostic design</h2>
+    <span class="section-tag">// 01 — ARCHITECTURE</span>
+    <h2 class="section-heading">Pub-sub · model-agnostic design</h2>
     <p class="section-sub">
-      Every layer is decoupled. The acquisition thread never knows about the GUI.
-      The decoder never touches the recorder. Each subsystem evolves independently;
-      a slow decoder never blocks the display, and a crashed recorder doesn't affect inference.
+      Acquisition, visualization, and decoding operate as independent subscribers on a shared pub-sub bus.
+      Layer isolation preserves display latency under inference load and keeps model backends interchangeable.
     </p>
 
     <div class="arch-diagram fade-in">
-      <svg viewBox="0 0 900 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <svg viewBox="0 0 900 420" fill="none" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <marker id="arr" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
             <path d="M0,0 L0,6 L7,3 z" fill="#475569"/>
@@ -159,78 +108,85 @@
         </defs>
 
         <!-- Hardware -->
-        <rect x="16" y="150" width="148" height="100" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
-        <text x="90" y="189" text-anchor="middle" fill="#38bdf8" font-size="12" font-weight="700" font-family="JetBrains Mono,monospace">OpenBCI</text>
-        <text x="90" y="207" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="Inter,sans-serif">Cyton+Daisy</text>
-        <text x="90" y="223" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="Inter,sans-serif">16ch · 125 Hz</text>
-        <text x="90" y="240" text-anchor="middle" fill="#475569" font-size="9.5" font-family="JetBrains Mono,monospace">serial / BrainFlow</text>
+        <rect x="16" y="160" width="148" height="100" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+        <text text-anchor="middle">
+          <tspan x="90" y="188" fill="#38bdf8" font-size="12" font-weight="700" font-family="'JetBrains Mono', monospace">OpenBCI</tspan>
+          <tspan x="90" y="206" fill="#94a3b8" font-size="11" font-family="Inter, sans-serif">Cyton+Daisy</tspan>
+          <tspan x="90" y="223" fill="#94a3b8" font-size="11" font-family="Inter, sans-serif">16ch · 125 Hz</tspan>
+          <tspan x="90" y="240" fill="#475569" font-size="9.5" font-family="'JetBrains Mono', monospace">serial / BrainFlow</tspan>
+        </text>
 
-        <line x1="164" y1="200" x2="218" y2="200" stroke="#475569" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="164" y1="210" x2="218" y2="210" stroke="#475569" stroke-width="1.5" marker-end="url(#arr)"/>
 
         <!-- Acquisition -->
-        <rect x="222" y="150" width="148" height="100" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
-        <text x="296" y="189" text-anchor="middle" fill="#f1f5f9" font-size="12" font-weight="700" font-family="Inter,sans-serif">BrainFlow</text>
-        <text x="296" y="207" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="Inter,sans-serif">Acquisition Thread</text>
-        <text x="296" y="225" text-anchor="middle" fill="#475569" font-size="9.5" font-family="JetBrains Mono,monospace">16-sample chunks</text>
-        <text x="296" y="241" text-anchor="middle" fill="#475569" font-size="9.5" font-family="JetBrains Mono,monospace">BoardShim polling</text>
+        <rect x="222" y="160" width="148" height="100" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+        <text text-anchor="middle">
+          <tspan x="296" y="188" fill="#f1f5f9" font-size="12" font-weight="700" font-family="Inter, sans-serif">BrainFlow</tspan>
+          <tspan x="296" y="206" fill="#94a3b8" font-size="11" font-family="Inter, sans-serif">Acquisition Thread</tspan>
+          <tspan x="296" y="223" fill="#475569" font-size="9.5" font-family="'JetBrains Mono', monospace">16-sample chunks</tspan>
+          <tspan x="296" y="240" fill="#475569" font-size="9.5" font-family="'JetBrains Mono', monospace">BoardShim polling</tspan>
+        </text>
 
-        <line x1="370" y1="200" x2="424" y2="200" stroke="#475569" stroke-width="1.5" marker-end="url(#arr)"/>
+        <line x1="370" y1="210" x2="424" y2="210" stroke="#475569" stroke-width="1.5" marker-end="url(#arr)"/>
 
         <!-- PubSubBus -->
-        <rect x="428" y="138" width="140" height="124" rx="8" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
-        <text x="498" y="179" text-anchor="middle" fill="#38bdf8" font-size="12" font-weight="700" font-family="JetBrains Mono,monospace">PubSubBus</text>
-        <text x="498" y="197" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="Inter,sans-serif">per-subscriber</text>
-        <text x="498" y="213" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="Inter,sans-serif">queues + drop</text>
-        <text x="498" y="233" text-anchor="middle" fill="#475569" font-size="9.5" font-family="JetBrains Mono,monospace">DataChunk[T]</text>
+        <rect x="428" y="148" width="140" height="124" rx="8" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
+        <text x="498" y="189" text-anchor="middle" fill="#38bdf8" font-size="12" font-weight="700" font-family="JetBrains Mono,monospace">PubSubBus</text>
+        <text x="498" y="207" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="Inter,sans-serif">per-subscriber</text>
+        <text x="498" y="223" text-anchor="middle" fill="#94a3b8" font-size="11" font-family="Inter,sans-serif">queues + drop</text>
+        <text x="498" y="243" text-anchor="middle" fill="#475569" font-size="9.5" font-family="JetBrains Mono,monospace">DataChunk[T]</text>
 
         <!-- Fan-out arrows -->
-        <line x1="568" y1="175" x2="686" y2="108" stroke="#38bdf8" stroke-width="1" stroke-opacity="0.55" marker-end="url(#arr-sky)"/>
-        <line x1="568" y1="200" x2="686" y2="200" stroke="#38bdf8" stroke-width="1" stroke-opacity="0.55" marker-end="url(#arr-sky)"/>
-        <line x1="568" y1="225" x2="686" y2="292" stroke="#38bdf8" stroke-width="1" stroke-opacity="0.55" marker-end="url(#arr-sky)"/>
+        <line x1="568" y1="180" x2="674" y2="105" stroke="#38bdf8" stroke-width="1" stroke-opacity="0.55" marker-end="url(#arr-sky)"/>
+        <line x1="568" y1="210" x2="674" y2="210" stroke="#38bdf8" stroke-width="1" stroke-opacity="0.55" marker-end="url(#arr-sky)"/>
+        <line x1="568" y1="240" x2="674" y2="315" stroke="#38bdf8" stroke-width="1" stroke-opacity="0.55" marker-end="url(#arr-sky)"/>
+
+        <!-- Consumers group -->
+        <rect x="680" y="42" width="204" height="356" rx="10" fill="transparent" stroke="#334155" stroke-width="1" stroke-dasharray="4 3"/>
+        <text x="782" y="30" text-anchor="middle" fill="#475569" font-size="9" font-family="JetBrains Mono,monospace">independent consumers</text>
 
         <!-- GUI Consumer -->
-        <rect x="690" y="50" width="194" height="116" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
-        <text x="787" y="78" text-anchor="middle" fill="#f1f5f9" font-size="11" font-weight="700" font-family="Inter,sans-serif">GUI Consumer</text>
-        <text x="787" y="95" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="Inter,sans-serif">PySide6 + pyqtgraph</text>
-        <text x="787" y="111" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="Inter,sans-serif">time series · FFT</text>
-        <text x="787" y="127" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="Inter,sans-serif">head plot · band power</text>
-        <text x="787" y="148" text-anchor="middle" fill="#475569" font-size="9" font-family="JetBrains Mono,monospace">30–40 ms refresh</text>
+        <rect x="692" y="56" width="180" height="100" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+        <text x="782" y="80" text-anchor="middle" fill="#f1f5f9" font-size="11" font-weight="700" font-family="Inter,sans-serif">GUI Consumer</text>
+        <text x="782" y="97" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="Inter,sans-serif">PySide6 + pyqtgraph</text>
+        <text x="782" y="113" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="Inter,sans-serif">time series · FFT</text>
+        <text x="782" y="129" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="Inter,sans-serif">head plot · band power</text>
+        <text x="782" y="146" text-anchor="middle" fill="#475569" font-size="9" font-family="JetBrains Mono,monospace">30–40 ms refresh</text>
 
         <!-- Recorder Consumer -->
-        <rect x="690" y="152" width="194" height="96" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
-        <text x="787" y="178" text-anchor="middle" fill="#f1f5f9" font-size="11" font-weight="700" font-family="Inter,sans-serif">Recorder</text>
-        <text x="787" y="195" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="JetBrains Mono,monospace">raw_frames.csv</text>
-        <text x="787" y="211" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="JetBrains Mono,monospace">metadata.json</text>
-        <text x="787" y="236" text-anchor="middle" fill="#475569" font-size="9" font-family="JetBrains Mono,monospace">ssvep_markers.jsonl</text>
+        <rect x="692" y="168" width="180" height="92" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+        <text x="782" y="192" text-anchor="middle" fill="#f1f5f9" font-size="11" font-weight="700" font-family="Inter,sans-serif">Recorder</text>
+        <text x="782" y="209" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="JetBrains Mono,monospace">raw_frames.csv</text>
+        <text x="782" y="225" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="JetBrains Mono,monospace">metadata.json</text>
+        <text x="782" y="246" text-anchor="middle" fill="#475569" font-size="9" font-family="JetBrains Mono,monospace">ssvep_markers.jsonl</text>
 
         <!-- Decoder Consumer -->
-        <rect x="690" y="264" width="194" height="118" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
-        <text x="787" y="290" text-anchor="middle" fill="#f1f5f9" font-size="11" font-weight="700" font-family="Inter,sans-serif">Decoder Runtime</text>
-        <text x="787" y="307" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="Inter,sans-serif">rolling window buffer</text>
-        <text x="787" y="323" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="Inter,sans-serif">stride-based inference</text>
-        <text x="787" y="339" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="Inter,sans-serif">EEGNet (TF/Keras)</text>
-        <text x="787" y="368" text-anchor="middle" fill="#475569" font-size="9" font-family="JetBrains Mono,monospace">manifest.json deploy</text>
+        <rect x="692" y="272" width="180" height="112" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+        <text x="782" y="296" text-anchor="middle" fill="#f1f5f9" font-size="11" font-weight="700" font-family="Inter,sans-serif">Decoder Runtime</text>
+        <text x="782" y="313" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="Inter,sans-serif">rolling window buffer</text>
+        <text x="782" y="329" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="Inter,sans-serif">stride-based inference</text>
+        <text x="782" y="345" text-anchor="middle" fill="#94a3b8" font-size="10" font-family="Inter,sans-serif">EEGNet (TF/Keras)</text>
+        <text x="782" y="368" text-anchor="middle" fill="#475569" font-size="9" font-family="JetBrains Mono,monospace">manifest.json deploy</text>
 
         <!-- Layer labels -->
-        <text x="90"  y="130" text-anchor="middle" fill="#475569" font-size="9" font-family="JetBrains Mono,monospace">hardware</text>
-        <text x="296" y="130" text-anchor="middle" fill="#475569" font-size="9" font-family="JetBrains Mono,monospace">transport</text>
-        <text x="498" y="120" text-anchor="middle" fill="#475569" font-size="9" font-family="JetBrains Mono,monospace">bus</text>
-        <text x="787" y="32"  text-anchor="middle" fill="#475569" font-size="9" font-family="JetBrains Mono,monospace">independent consumers</text>
+        <text x="90"  y="140" text-anchor="middle" fill="#475569" font-size="9" font-family="JetBrains Mono,monospace">hardware</text>
+        <text x="296" y="140" text-anchor="middle" fill="#475569" font-size="9" font-family="JetBrains Mono,monospace">transport</text>
+        <text x="498" y="130" text-anchor="middle" fill="#475569" font-size="9" font-family="JetBrains Mono,monospace">bus</text>
       </svg>
     </div>
 
     <div class="grid-3" style="margin-top:1.5rem;">
       <div class="card fade-in">
         <h3>Zero coupling</h3>
-        <p>GUI, recorder, and decoder subscribe independently. No consumer ever blocks another.</p>
+        <p>GUI, recorder, and decoder subscribe independently with no cross-consumer blocking.</p>
       </div>
       <div class="card fade-in">
         <h3>Drop policy</h3>
-        <p>Each queue has a configurable max size. Stale frames are dropped rather than building backpressure — latency stays bounded.</p>
+        <p>Bounded per-subscriber queues drop stale frames under load, keeping end-to-end latency controlled.</p>
       </div>
       <div class="card fade-in">
         <h3>Manifest contract</h3>
-        <p>One <code>manifest.json</code> per model encodes window, stride, channels, preprocessing, and class labels. Swap models without touching application code.</p>
+        <p>Each model ships a <code>manifest.json</code> specifying window, stride, channels, preprocessing, and labels for drop-in exchange.</p>
       </div>
     </div>
   </div>
@@ -239,7 +195,7 @@
 <!-- ── Interface ── -->
 <section id="interface">
   <div class="container">
-    <span class="section-tag">// 03 — INTERFACE</span>
+    <span class="section-tag">// 02 — INTERFACE</span>
     <h2 class="section-heading">OpenBCI-grade neural visualization</h2>
 
     <div class="grid-2" style="gap:2.5rem; margin-top:2rem;">
@@ -250,8 +206,8 @@
             <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" /></svg>
           </div>
           <h3>Live Demo Video</h3>
-          <p>16-channel EEG, FFT spectrum, scalp head plot, and SSVEP stimulus panel.</p>
-          <p style="margin-top:0.4rem; font-size:0.72rem; color:var(--text-faint); font-family:var(--font-mono);">drop demo.mp4 into docs/ to activate</p>
+          <p>16-channel EEG, FFT spectrum, scalp head plot, and band-power monitoring.</p>
+          <p style="margin-top:0.4rem; font-size:0.72rem; color:var(--text-faint); font-family:var(--font-mono);">demo video coming soon</p>
         </div>
         <video id="demo-video" style="display:none; width:100%; border-radius:var(--radius); border:1px solid var(--border);" controls>
           <source src="demo.mp4" type="video/mp4" />
@@ -260,52 +216,24 @@
 
       <div class="gui-features fade-in">
         <div class="gui-feature">
-          <!-- Heroicons: presentation-chart-line -->
-          <div class="gui-feature-icon"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 0 0 6 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0 1 18 16.5h-2.25m-7.5 0h7.5m-7.5 0-1 3m8.5-3 1 3m0 0 .5 1.5m-.5-1.5h-9.5m0 0-.5 1.5m.75-9 3-3 2.148 2.148A12.061 12.061 0 0 1 16.5 7.605" /></svg></div>
-          <div>
-            <h4>16-Channel Time Series</h4>
-            <p>Scrolling 6 s window, auto-scale. 22 s ring buffer. Bandpass + notch + CAR applied in real time.</p>
-          </div>
+          <h4>16-Channel Time Series</h4>
+          <p>Scrolling 6 s window, auto-scale. 22 s ring buffer. Bandpass + notch + CAR applied in real time.</p>
         </div>
         <div class="gui-feature">
-          <!-- Heroicons: signal -->
-          <div class="gui-feature-icon"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.348 14.652a3.75 3.75 0 0 1 0-5.304m5.304 0a3.75 3.75 0 0 1 0 5.304m-7.425 2.121a6.75 6.75 0 0 1 0-9.546m9.546 0a6.75 6.75 0 0 1 0 9.546M5.106 18.894c-3.808-3.807-3.808-9.98 0-13.788m13.788 0c3.808 3.807 3.808 9.98 0 13.788M12 12h.008v.008H12V12Z" /></svg></div>
-          <div>
-            <h4>FFT Amplitude Spectrum</h4>
-            <p>Log-scale Y, 0.1&ndash;60 Hz, updated at 40 ms. Resolves SSVEP harmonics clearly.</p>
-          </div>
+          <h4>FFT Amplitude Spectrum</h4>
+          <p>Visualizes the frequency-domain transform from 0.1&ndash;60 Hz on a log-scale amplitude axis, refreshed at 40 ms.</p>
         </div>
         <div class="gui-feature">
-          <!-- Heroicons: map -->
-          <div class="gui-feature-icon"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z" /></svg></div>
-          <div>
-            <h4>Scalp Head Plot</h4>
-            <p>Diffusion-interpolated intensity across 16-electrode montage. Polarity contours show spatial distribution.</p>
-          </div>
+          <h4>Scalp Head Plot</h4>
+          <p>Maps RMS spatial activation across the 16-electrode montage with diffusion interpolation and polarity contours.</p>
         </div>
         <div class="gui-feature">
-          <!-- Heroicons: squares-2x2 -->
-          <div class="gui-feature-icon"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" /></svg></div>
-          <div>
-            <h4>Band Power Histograms</h4>
-            <p>4&times;4 grid of &delta;/&theta;/&alpha;/&beta;/&gamma; bars across all 16 channels, on an independent spectral clock.</p>
-          </div>
+          <h4>Band Power Histograms</h4>
+          <p>4&times;4 grid of &delta;/&theta;/&alpha;/&beta;/&gamma; bars across all 16 channels, on an independent spectral clock.</p>
         </div>
         <div class="gui-feature">
-          <!-- Heroicons: viewfinder-circle -->
-          <div class="gui-feature-icon"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 3.75H6A2.25 2.25 0 0 0 3.75 6v1.5M16.5 3.75H18A2.25 2.25 0 0 1 20.25 6v1.5m0 9V18A2.25 2.25 0 0 1 18 20.25h-1.5m-9 0H6A2.25 2.25 0 0 1 3.75 18v-1.5M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg></div>
-          <div>
-            <h4>SSVEP Stimulus Panel</h4>
-            <p>Fullscreen participant view, frame-locked flickering stimuli. Configurable frequencies, trial count, randomization. Writes timestamped markers.</p>
-          </div>
-        </div>
-        <div class="gui-feature">
-          <!-- Heroicons: arrow-path -->
-          <div class="gui-feature-icon"><svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg></div>
-          <div>
-            <h4>Live Decoder Output</h4>
-            <p>EEGNet runs on a background thread. Predicted label, confidence, and inference count streamed to status bar.</p>
-          </div>
+          <h4>Live Decoder Output</h4>
+          <p>EEGNet runs on a background thread. Predicted label, confidence, and inference count streamed to status bar.</p>
         </div>
       </div>
     </div>
@@ -315,48 +243,44 @@
 <!-- ── Pipeline ── -->
 <section id="pipeline" class="section-alt">
   <div class="container">
-    <span class="section-tag">// 04 — PIPELINE</span>
-    <h2 class="section-heading">From raw recording to live decoding</h2>
-    <p class="section-sub">
-      Every model must pass an offline validation gate before it can run in live mode.
-      This prevents overfitted or incorrectly preprocessed models from ever touching real-time data.
-    </p>
+    <span class="section-tag">// 03 — PIPELINE</span>
+    <h2 class="section-heading">From raw recording to live decoding &mdash; SSVEP paradigm</h2>
 
     <div class="pipeline-steps fade-in">
       <div class="pipeline-step">
         <span class="pipeline-step-num">01</span>
         <h4>Record</h4>
-        <p>GUI + SSVEP panel. Writes <code>raw_frames.csv</code>, <code>metadata.json</code>, timestamped <code>ssvep_markers.jsonl</code>.</p>
+        <p>Capture EEG with trial markers during SSVEP sessions.</p>
       </div>
       <div class="pipeline-arrow">&rarr;</div>
       <div class="pipeline-step">
         <span class="pipeline-step-num">02</span>
         <h4>Validate</h4>
-        <p>PSD separability. Per-channel SNR. Window-length sweep. Cross-session exportability.</p>
+        <p>Check signal quality and class separability offline.</p>
       </div>
       <div class="pipeline-arrow">&rarr;</div>
       <div class="pipeline-step">
         <span class="pipeline-step-num">03</span>
         <h4>Epoch</h4>
-        <p>Marker-aligned trial extraction. Onset trimming, bandpass + notch applied offline.</p>
+        <p>Extract labeled trials and prepare training windows.</p>
       </div>
       <div class="pipeline-arrow">&rarr;</div>
       <div class="pipeline-step">
         <span class="pipeline-step-num">04</span>
         <h4>Train EEGNet</h4>
-        <p>Depthwise CNN. 120 epochs, early stopping, 80/20 session split. Outputs <code>model.keras</code> + <code>manifest.json</code>.</p>
+        <p>Fit the decoder and export a versioned model package.</p>
       </div>
       <div class="pipeline-arrow">&rarr;</div>
       <div class="pipeline-step">
         <span class="pipeline-step-num">05</span>
         <h4>Replay Gate</h4>
-        <p>Offline replay through decoder runtime using saved recording. Verifies preprocessing parity.</p>
+        <p>Replay saved data to confirm offline&ndash;online parity.</p>
       </div>
       <div class="pipeline-arrow">&rarr;</div>
       <div class="pipeline-step">
         <span class="pipeline-step-num">06</span>
         <h4>Live Deploy</h4>
-        <p><code>--decoder-manifest</code> + <code>--deployment-mode live</code>. Preflight enforced at startup.</p>
+        <p>Load the manifest and run online SSVEP decoding.</p>
       </div>
     </div>
 
@@ -390,110 +314,10 @@ python -m gui.app \
   </div>
 </section>
 
-<!-- ── Results ── -->
-<section id="results">
-  <div class="container">
-    <span class="section-tag">// 05 — RESULTS</span>
-    <h2 class="section-heading">Signal separability in pilot data</h2>
-    <p class="section-sub">
-      Single-participant pilot dataset (n=120 trials per paradigm). Goal: validate the signal
-      pipeline and preprocessing choices. PSD-based probes show above-chance separability
-      even on limited data.
-    </p>
-
-    <div class="metric-cards fade-in">
-      <div class="metric-card">
-        <div class="metric-card-val sky">62.5%</div>
-        <div class="metric-card-label">PSD probe &middot; binary 2-freq</div>
-        <div class="metric-card-note">best channel &middot; 50% chance level</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-card-val sky">30.8%</div>
-        <div class="metric-card-label">PSD probe &middot; 5-freq</div>
-        <div class="metric-card-note">best channel &middot; 20% chance level</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-card-val amber">2.4&times;</div>
-        <div class="metric-card-label">Mean SNR ratio</div>
-        <div class="metric-card-note">7.5 Hz trials &middot; target-freq dominance</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-card-val green">120</div>
-        <div class="metric-card-label">Trials per paradigm</div>
-        <div class="metric-card-note">pilot &middot; dataset expansion ongoing</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-card-val sky">5</div>
-        <div class="metric-card-label">Frequencies tested</div>
-        <div class="metric-card-note">7.5 &middot; 8.3 &middot; 10 &middot; 12.5 &middot; 15 Hz</div>
-      </div>
-    </div>
-
-    <div class="results-grid">
-      <div class="result-fig fade-in" onclick="openLightbox('figures/fig_binary_scatter.png')">
-        <img src="figures/fig_binary_scatter.png" alt="Binary SSVEP PSD scatter" loading="lazy" />
-        <div class="result-fig-caption">
-          <h4>PSD Scatter &mdash; Binary</h4>
-          <p>Trial-level 7.5 vs 12.5 Hz power across channels.</p>
-        </div>
-      </div>
-      <div class="result-fig fade-in" onclick="openLightbox('figures/fig_binary_confusion.png')">
-        <img src="figures/fig_binary_confusion.png" alt="Binary confusion matrix" loading="lazy" />
-        <div class="result-fig-caption">
-          <h4>Confusion Matrix &mdash; Binary</h4>
-          <p>PSD-based classification: 7.5 vs 12.5 Hz.</p>
-        </div>
-      </div>
-      <div class="result-fig fade-in" onclick="openLightbox('figures/fig_psd_exportability_binary.png')">
-        <img src="figures/fig_psd_exportability_binary.png" alt="PSD exportability binary" loading="lazy" />
-        <div class="result-fig-caption">
-          <h4>Exportability Search &mdash; Binary</h4>
-          <p>Grid search over onset trim / window for separability score.</p>
-        </div>
-      </div>
-      <div class="result-fig fade-in" onclick="openLightbox('figures/fig_per_channel_summary.png')">
-        <img src="figures/fig_per_channel_summary.png" alt="Per-channel SNR" loading="lazy" />
-        <div class="result-fig-caption">
-          <h4>Per-Channel SNR Summary</h4>
-          <p>SSVEP response strength across the 16-electrode montage.</p>
-        </div>
-      </div>
-      <div class="result-fig fade-in" onclick="openLightbox('figures/fig_5freq_confusion.png')">
-        <img src="figures/fig_5freq_confusion.png" alt="5-frequency confusion matrix" loading="lazy" />
-        <div class="result-fig-caption">
-          <h4>Confusion Matrix &mdash; 5-Frequency</h4>
-          <p>5-class PSD classification. 20% chance level.</p>
-        </div>
-      </div>
-      <div class="result-fig fade-in" onclick="openLightbox('figures/fig_psd_window_sweep.png')">
-        <img src="figures/fig_psd_window_sweep.png" alt="PSD window sweep" loading="lazy" />
-        <div class="result-fig-caption">
-          <h4>Window Length Sweep</h4>
-          <p>Separability vs trial window duration. Informs 2 s EEGNet input.</p>
-        </div>
-      </div>
-      <div class="result-fig fade-in" onclick="openLightbox('figures/fig_5freq_run_dominance.png')">
-        <img src="figures/fig_5freq_run_dominance.png" alt="5-freq run dominance" loading="lazy" />
-        <div class="result-fig-caption">
-          <h4>Run Dominance &mdash; 5-Frequency</h4>
-          <p>Per-label PSD dominance ratio across two recording sessions.</p>
-        </div>
-      </div>
-      <div class="result-fig fade-in" onclick="openLightbox('figures/fig_psd_exportability_5freq.png')">
-        <img src="figures/fig_psd_exportability_5freq.png" alt="PSD exportability 5-freq" loading="lazy" />
-        <div class="result-fig-caption">
-          <h4>Exportability Search &mdash; 5-Freq</h4>
-          <p>Frequency-pair exportability across preprocessing configurations.</p>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
 <!-- ── Stack ── -->
 <section id="stack" class="section-alt">
   <div class="container">
-    <span class="section-tag">// 06 — STACK</span>
+    <span class="section-tag">// 04 — STACK</span>
     <h2 class="section-heading">Built entirely in Python</h2>
     <p class="section-sub">No framework overhead &mdash; just the right libraries for each layer.</p>
 
@@ -567,7 +391,7 @@ python -m gui.app \
 <section class="cta-section" style="padding:3.5rem clamp(1.5rem,5vw,4rem);">
   <div class="container" style="display:flex; align-items:center; justify-content:space-between; gap:2rem; flex-wrap:wrap;">
     <div>
-      <span class="section-tag">// 07 — SOURCE</span>
+      <span class="section-tag">// 05 — SOURCE</span>
       <h2 class="section-heading" style="font-size:1.5rem; margin-bottom:0.5rem;">All code is open source.</h2>
       <p style="max-width:480px; margin-top:0.5rem;">Streaming, GUI, preprocessing, training, validation, and decoder runtime &mdash; all on GitHub.</p>
     </div>
