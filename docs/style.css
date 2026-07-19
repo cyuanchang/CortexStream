@@ -287,29 +287,48 @@ section { padding: clamp(4rem, 7vw, 6.5rem) clamp(1.5rem, 4vw, 3rem); }
 .arch-diagram text,
 .arch-diagram tspan { text-anchor: middle; }
 
-/* ── Interface / demo ── */
-.demo-placeholder {
-  aspect-ratio: 16/9;
-  background: var(--slate-800);
-  border: 1px dashed var(--border-hi);
+/* ── Interface / gallery ── */
+.gallery {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 1.25rem;
+  margin: 2rem 0 1.75rem;
+}
+@media (max-width: 900px) {
+  .gallery { grid-template-columns: 1fr; }
+}
+.gallery-item {
+  margin: 0;
+  border: 1px solid var(--border);
   border-radius: var(--radius);
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 0.875rem; text-align: center; padding: 2rem;
+  background: var(--bg-card);
+  overflow: hidden;
+  cursor: zoom-in;
+  transition: border-color 0.15s;
 }
-.demo-play-btn {
-  width: 52px; height: 52px; border-radius: 50%;
-  background: var(--slate-700);
-  border: 1px solid var(--border-hi);
-  display: flex; align-items: center; justify-content: center;
-  color: var(--text-muted); cursor: pointer;
+.gallery-item:hover { border-color: var(--border-hi); }
+.gallery-item img {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #000;
 }
-.demo-play-btn:hover { border-color: var(--sky-400); color: var(--sky-400); }
-.demo-play-btn svg { width: 20px; height: 20px; margin-left: 2px; }
-.demo-placeholder h3 { font-size: 0.9rem; color: #fff; }
-.demo-placeholder p { font-size: 0.8rem; }
+.gallery-item figcaption {
+  padding: 0.9rem 1rem 1.05rem;
+  border-top: 1px solid var(--border);
+}
+.gallery-item h4 {
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+.gallery-item p { font-size: 0.8rem; }
 
-.gui-features { display: flex; flex-direction: column; gap: 0.75rem; }
+.pipeline-doc {
+  gap: 0.875rem;
+  margin-top: 0.25rem;
+}
 .gui-feature {
   padding: 0.875rem 1rem;
   border: 1px solid var(--border);

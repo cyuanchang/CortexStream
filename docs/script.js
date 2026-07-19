@@ -43,27 +43,6 @@ document.addEventListener('keydown', (e) => {
 // Prevent click on image from closing
 document.getElementById('lightbox-img').addEventListener('click', (e) => e.stopPropagation());
 
-/* ── Demo video: check if file exists, show video or placeholder ── */
-function checkDemoVideo() {
-  const video = document.getElementById('demo-video');
-  const placeholder = document.getElementById('demo-placeholder');
-  if (!video) return;
-
-  // Try to detect if the video source is valid by loading metadata
-  const testVideo = document.createElement('video');
-  testVideo.src = 'demo.mp4';
-  testVideo.addEventListener('loadedmetadata', () => {
-    // Video exists — swap placeholder for real player
-    placeholder.style.display = 'none';
-    video.style.display = 'block';
-  });
-  testVideo.addEventListener('error', () => {
-    // Video not found — keep placeholder
-  });
-}
-
-checkDemoVideo();
-
 /* ── Smooth active nav highlight ── */
 const sections = document.querySelectorAll('section[id]');
 const navLinks = document.querySelectorAll('.nav-links a');
@@ -81,14 +60,3 @@ const sectionObserver = new IntersectionObserver((entries) => {
 }, { threshold: 0.4 });
 
 sections.forEach(s => sectionObserver.observe(s));
-
-/* ── Play button: scroll to or open video ── */
-const playBtn = document.getElementById('play-btn');
-if (playBtn) {
-  playBtn.addEventListener('click', () => {
-    const video = document.getElementById('demo-video');
-    if (video.style.display !== 'none') {
-      video.play();
-    }
-  });
-}

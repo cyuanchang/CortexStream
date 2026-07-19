@@ -43,14 +43,12 @@
 
     <p class="hero-gui">
       <span class="hero-gui-label">Live GUI</span>
-      Filtered streaming &middot; FFT frequency view &middot; RMS spatial activation &middot; Band-power monitoring
+      Filtered streaming &middot; FFT frequency view &middot; Std-dev spatial activation &middot; Band-power monitoring
     </p>
 
     <div class="hero-actions">
       <a href="#interface" class="btn-primary">
-        <!-- Heroicons: play -->
-        <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" /></svg>
-        See the Demo
+        See the Interface
       </a>
       <a href="https://github.com/cyuanchang/BCI" class="btn-outline" target="_blank" rel="noopener">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.342-3.369-1.342-.454-1.155-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0112 6.836a9.59 9.59 0 012.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.202 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/></svg>
@@ -196,45 +194,63 @@
 <section id="interface">
   <div class="container">
     <span class="section-tag">// 02 — INTERFACE</span>
-    <h2 class="section-heading">OpenBCI-grade neural visualization</h2>
+    <h2 class="section-heading">Live GUI and signal pipelines</h2>
+    <p class="section-sub">
+      Real-time monitoring views built on a shared filtered buffer.
+    </p>
 
-    <div class="grid-2" style="gap:2.5rem; margin-top:2rem;">
-      <div>
-        <div class="demo-placeholder fade-in" id="demo-placeholder">
-          <div class="demo-play-btn" id="play-btn">
-            <!-- Heroicons: play -->
-            <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" /></svg>
-          </div>
-          <h3>Live Demo Video</h3>
-          <p>16-channel EEG, FFT spectrum, scalp head plot, and band-power monitoring.</p>
-          <p style="margin-top:0.4rem; font-size:0.72rem; color:var(--text-faint); font-family:var(--font-mono);">demo video coming soon</p>
-        </div>
-        <video id="demo-video" style="display:none; width:100%; border-radius:var(--radius); border:1px solid var(--border);" controls>
-          <source src="demo.mp4" type="video/mp4" />
-        </video>
+    <div class="gallery fade-in">
+      <figure class="gallery-item" onclick="openLightbox('gallery/gui_main.png')">
+        <img src="gallery/gui_main.png" alt="CortexStream main GUI: time series, FFT, and head plot" loading="lazy" />
+        <figcaption>
+          <h4>Main monitoring GUI</h4>
+          <p>
+            16-channel filtered time series for direct signal visualization,
+            post-preprocess FFT for frequency content,
+            and a polarity-aware head plot for spatial monitoring.
+          </p>
+        </figcaption>
+      </figure>
+      <figure class="gallery-item" onclick="openLightbox('gallery/gui_band_power.png')">
+        <img src="gallery/gui_band_power.png" alt="CortexStream band power window: per-channel normalized D/T/A/B/G bars" loading="lazy" />
+        <figcaption>
+          <h4>Band-power window</h4>
+          <p>Per-channel normalized &delta;/&theta;/&alpha;/&beta;/&gamma; histograms derived from the smoothed FFT amplitude.</p>
+        </figcaption>
+      </figure>
+    </div>
+
+    <div class="pipeline-doc grid-2 fade-in">
+      <div class="gui-feature">
+        <h4>Display preprocessing</h4>
+        <p>
+          A 22&nbsp;s processing buffer is filtered with bandpass 4&ndash;40&nbsp;Hz, then a 60&nbsp;Hz notch
+          and common average reference (CAR). The visible time series shows the last 6&nbsp;s of that filtered buffer.
+        </p>
       </div>
-
-      <div class="gui-features fade-in">
-        <div class="gui-feature">
-          <h4>16-Channel Time Series</h4>
-          <p>Scrolling 6 s window, auto-scale. 22 s ring buffer. Bandpass + notch + CAR applied in real time.</p>
-        </div>
-        <div class="gui-feature">
-          <h4>FFT Amplitude Spectrum</h4>
-          <p>Visualizes the frequency-domain transform from 0.1&ndash;60 Hz on a log-scale amplitude axis, refreshed at 40 ms.</p>
-        </div>
-        <div class="gui-feature">
-          <h4>Scalp Head Plot</h4>
-          <p>Maps RMS spatial activation across the 16-electrode montage with diffusion interpolation and polarity contours.</p>
-        </div>
-        <div class="gui-feature">
-          <h4>Band Power Histograms</h4>
-          <p>4&times;4 grid of &delta;/&theta;/&alpha;/&beta;/&gamma; bars across all 16 channels, on an independent spectral clock.</p>
-        </div>
-        <div class="gui-feature">
-          <h4>Live Decoder Output</h4>
-          <p>EEGNet runs on a background thread. Predicted label, confidence, and inference count streamed to status bar.</p>
-        </div>
+      <div class="gui-feature">
+        <h4>FFT transformation</h4>
+        <p>
+          On the spectral clock, the last <code>Nfft = 256</code> filtered samples are mean-centered,
+          Hamming-windowed, and transformed with a one-sided FFT. Amplitude is smoothed in log-power space
+          and plotted from about 0.1&ndash;60&nbsp;Hz on a log scale.
+        </p>
+      </div>
+      <div class="gui-feature">
+        <h4>Head-plot pipeline</h4>
+        <p>
+          Per-channel standard deviation over the last 1&nbsp;s of filtered EEG sets intensity.
+          Polarity is the sign of each channel&rsquo;s dot product with the strongest-channel reference,
+          then diffusion-interpolated across the 16-electrode montage.
+        </p>
+      </div>
+      <div class="gui-feature">
+        <h4>Band-power calculation</h4>
+        <p>
+          From the smoothed FFT amplitude, single-sided PSD is summed in standard band edges
+          (&delta; 1&ndash;4, &theta; 4&ndash;8, &alpha; 8&ndash;13, &beta; 13&ndash;30, &gamma; 30&ndash;55&nbsp;Hz)
+          and normalized per channel so the five bars sum to 1.
+        </p>
       </div>
     </div>
   </div>
