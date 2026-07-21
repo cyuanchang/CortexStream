@@ -290,27 +290,43 @@ section { padding: clamp(4rem, 7vw, 6.5rem) clamp(1.5rem, 4vw, 3rem); }
 /* ── Hardware ── */
 .hardware-layout {
   display: grid;
-  grid-template-columns: 1.15fr 1fr;
-  gap: 3rem;
+  grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+  gap: 2.5rem 3rem;
   align-items: center;
   margin-top: 2rem;
+  max-width: 960px;
 }
 @media (max-width: 900px) {
-  .hardware-layout { grid-template-columns: 1fr; }
+  .hardware-layout {
+    grid-template-columns: 1fr;
+    max-width: 480px;
+  }
 }
-.hardware-photo { margin: 0; }
+.hardware-photo {
+  margin: 0;
+  max-width: 420px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  overflow: hidden;
+  cursor: zoom-in;
+  transition: border-color 0.15s;
+}
+.hardware-photo:hover { border-color: var(--border-hi); }
 .hardware-photo img {
   display: block;
   width: 100%;
   height: auto;
+  max-height: 480px;
   object-fit: contain;
+  object-position: center top;
   background: #0a0e17;
 }
 .hardware-copy {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 1.75rem;
+  gap: 1.5rem;
 }
 .hardware-item h3 {
   color: #fff;
@@ -323,20 +339,23 @@ section { padding: clamp(4rem, 7vw, 6.5rem) clamp(1.5rem, 4vw, 3rem); }
   line-height: 1.65;
   color: var(--text-muted);
   margin: 0;
-  max-width: 38ch;
+  max-width: 40ch;
 }
 
 /* ── Interface / gallery ── */
 .gallery {
   display: grid;
-  grid-template-columns: 1.4fr 1fr;
+  grid-template-columns: 1.35fr 1fr;
   gap: 1.25rem;
+  align-items: stretch;
   margin: 2rem 0 1.75rem;
 }
-@media (max-width: 900px) {
+@media (max-width: 720px) {
   .gallery { grid-template-columns: 1fr; }
 }
 .gallery-item {
+  display: flex;
+  flex-direction: column;
   margin: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -349,12 +368,15 @@ section { padding: clamp(4rem, 7vw, 6.5rem) clamp(1.5rem, 4vw, 3rem); }
 .gallery-item img {
   display: block;
   width: 100%;
-  height: auto;
+  aspect-ratio: 16 / 10;
+  object-fit: contain;
+  object-position: top center;
   background: #000;
 }
 .gallery-item figcaption {
   padding: 0.9rem 1rem 1.05rem;
   border-top: 1px solid var(--border);
+  margin-top: auto;
 }
 .gallery-item h4 {
   color: #fff;
