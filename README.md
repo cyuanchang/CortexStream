@@ -60,5 +60,3 @@ scripts/                epoching, export, offline replay utilities
 Validation/             PSD / separability analysis scripts
 docs/                   CortexStream portfolio site
 ```
-
-Local experiment data (`Data/`, `recordings/`, `models/`) is gitignored and kept on disk for demos.
