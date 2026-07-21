@@ -16,6 +16,7 @@
 <nav id="nav">
   <span class="nav-logo">CortexStream</span>
   <div class="nav-links">
+    <a href="#hardware">hardware</a>
     <a href="#architecture">architecture</a>
     <a href="#interface">interface</a>
     <a href="#pipeline">pipeline</a>
@@ -84,10 +85,37 @@
   </div>
 </section>
 
-<!-- ── Architecture ── -->
-<section id="architecture" class="section-alt">
+<!-- ── Hardware ── -->
+<section id="hardware" class="section-alt">
   <div class="container">
-    <span class="section-tag">// 01 — ARCHITECTURE</span>
+    <span class="section-tag">// 01 — HARDWARE</span>
+    <h2 class="section-heading">16-channel OpenBCI acquisition</h2>
+    <p class="section-sub">
+      Physical front end for CortexStream: Cyton + Daisy with a dry electrode montage.
+    </p>
+
+    <div class="hardware-layout fade-in">
+      <figure class="gallery-item hardware-photo" onclick="openLightbox('gallery/hardware_cyton_daisy.png')">
+        <img src="gallery/hardware_cyton_daisy.png" alt="OpenBCI Cyton and Daisy boards wired to a 16 dry-electrode headband" loading="lazy" />
+      </figure>
+      <div class="hardware-copy">
+        <div class="hardware-item">
+          <h3>OpenBCI Cyton + Daisy</h3>
+          <p>16 EEG channels at 125&nbsp;Hz, streaming into the same pub-sub bus used by the GUI and decoder.</p>
+        </div>
+        <div class="hardware-item">
+          <h3>16 dry electrodes</h3>
+          <p>Wearable headband for gel-free scalp contact.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Architecture ── -->
+<section id="architecture">
+  <div class="container">
+    <span class="section-tag">// 02 — ARCHITECTURE</span>
     <h2 class="section-heading">Pub-sub · model-agnostic design</h2>
     <p class="section-sub">
       Acquisition, visualization, and decoding operate as independent subscribers on a shared pub-sub bus.
@@ -193,7 +221,7 @@
 <!-- ── Interface ── -->
 <section id="interface">
   <div class="container">
-    <span class="section-tag">// 02 — INTERFACE</span>
+    <span class="section-tag">// 03 — INTERFACE</span>
     <h2 class="section-heading">Live GUI and signal pipelines</h2>
     <p class="section-sub">
       Real-time monitoring views built on a shared filtered buffer.
@@ -259,7 +287,7 @@
 <!-- ── Pipeline ── -->
 <section id="pipeline" class="section-alt">
   <div class="container">
-    <span class="section-tag">// 03 — PIPELINE</span>
+    <span class="section-tag">// 04 — PIPELINE</span>
     <h2 class="section-heading">From raw recording to live decoding &mdash; SSVEP paradigm</h2>
 
     <div class="pipeline-steps fade-in">
@@ -333,7 +361,7 @@ python -m gui.app \
 <!-- ── Stack ── -->
 <section id="stack" class="section-alt">
   <div class="container">
-    <span class="section-tag">// 04 — STACK</span>
+    <span class="section-tag">// 05 — STACK</span>
     <h2 class="section-heading">Built entirely in Python</h2>
     <p class="section-sub">No framework overhead &mdash; just the right libraries for each layer.</p>
 
@@ -407,7 +435,7 @@ python -m gui.app \
 <section class="cta-section" style="padding:3.5rem clamp(1.5rem,5vw,4rem);">
   <div class="container" style="display:flex; align-items:center; justify-content:space-between; gap:2rem; flex-wrap:wrap;">
     <div>
-      <span class="section-tag">// 05 — SOURCE</span>
+      <span class="section-tag">// 06 — SOURCE</span>
       <h2 class="section-heading" style="font-size:1.5rem; margin-bottom:0.5rem;">All code is open source.</h2>
       <p style="max-width:480px; margin-top:0.5rem;">Streaming, GUI, preprocessing, training, validation, and decoder runtime &mdash; all on GitHub.</p>
     </div>
